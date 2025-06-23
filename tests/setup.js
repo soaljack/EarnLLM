@@ -1,0 +1,99 @@
+/**
+ * Global test setup for EarnLLM API tests
+ */
+
+// Set environment to test
+process.env.NODE_ENV = 'test';
+
+// Set test database
+process.env.DB_NAME = 'earnllm_test';
+
+// Import mocks
+const sequelizeMock = require('./mocks/sequelize.mock');
+const authMiddlewareMock = require('./mocks/auth.middleware.mock');
+const authHelpersMock = require('./mocks/authHelpers.mock');
+
+// Mock external services
+jest.mock('stripe', () => jest.fn().mockImplementation(() => ({
+  customers: {
+    create: jest.fn().mockResolvedValue({ id: 'cus_mock123456' }),
+    update: jest.fn().mockResolvedValue({ id: 'cus_mock123456' }),
+  },
+  subscriptions: {
+    create: jest.fn().mockResolvedValue({
+      id: 'sub_mock123456',
+      status: 'active',
+      current_period_start: Math.floor(Date.now() / 1000),
+      current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+    }),
+    retrieve: jest.fn().mockResolvedValue({
+      id: 'sub_mock123456',
+      status: 'active',
+      current_period_start: Math.floor(Date.now() / 1000),
+      current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+    }),
+  },
+  checkout: {
+    sessions: {
+      create: jest.fn().mockResolvedValue({
+        id: 'cs_mock123456',
+        url: 'https://checkout.stripe.com/mock',
+      }),
+    },
+  },
+  billingPortal: {
+    sessions: {
+      create: jest.fn().mockResolvedValue({
+        url: 'https://billing.stripe.com/mock',
+      }),
+    },
+  },
+  paymentIntents: {
+    create: jest.fn().mockResolvedValue({
+      id: 'pi_mock123456',
+      client_secret: 'pi_mock123456_secret_mock123456',
+    }),
+  },
+  webhooks: {
+    constructEvent: jest.fn().mockImplementation((_body, _signature, _secret) => ({
+      type: 'mock.event',
+      data: { object: {} },
+    })),
+  },
+})));
+
+// Mock OpenAI API
+jest.mock('openai', () => ({
+  OpenAI: jest.fn().mockImplementation(() => ({
+    chat: {
+      completions: {
+        create: jest.fn().mockResolvedValue({
+          id: 'chatcmpl-mock123456',
+          choices: [{ message: { role: 'assistant', content: 'This is a test response' } }],
+          usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+        }),
+      },
+    },
+    embeddings: {
+      create: jest.fn().mockResolvedValue({
+        data: [{ embedding: new Array(1536).fill(0.1) }],
+        usage: { prompt_tokens: 8, total_tokens: 8 },
+      }),
+    },
+  })),
+}));
+
+// Mock database models
+jest.mock('../src/models', () => sequelizeMock);
+
+// Mock authentication helpers - using jest.doMock for modules that might not exist
+jest.doMock('../src/utils/auth', () => authHelpersMock, { virtual: true });
+jest.doMock('bcryptjs', () => authHelpersMock.bcrypt, { virtual: true });
+
+// Reset mocks between tests
+beforeEach(() => {
+  jest.clearAllMocks();
+});
+
+// Global test timeout
+jest.setTimeout(30000);

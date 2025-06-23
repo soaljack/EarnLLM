@@ -1,0 +1,81 @@
+{
+	"info": {
+		"_postman_id": "c1f7f4a7-4a8e-4b9b-8d1e-7a0c1b0a1b9a",
+		"name": "EarnLLM API",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Health Check",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/health",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"health"
+					]
+				},
+				"description": "Checks the health of the API server."
+			},
+			"response": []
+		},
+		{
+			"name": "Chat Completions",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "x-api-key",
+						"value": "{{apiKey}}",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"messages\": [\n      {\n        \"role\": \"user\",\n        \"content\": \"Tell me a joke about APIs.\"\n      }\n    ],\n    \"model\": \"gpt-4\"\n  }",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/llm/chat/completions",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"llm",
+						"chat",
+						"completions"
+					]
+				},
+				"description": "Sends a prompt to the chat completions endpoint."
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:3000",
+			"type": "string"
+		},
+		{
+			"key": "apiKey",
+			"value": "paste_your_api_key_here",
+			"type": "string",
+			"description": "Your API key generated from the seed-dev-user.js script."
+		}
+	]
+}

@@ -1,0 +1,13 @@
+node_modules/
+coverage/
+.DS_Store
+*.log
+
+# Add any other files or directories you want ESLint to ignore
+# For example, if you have a 'dist' folder for build output:
+# dist/
+
+# If your .env files are committed (not recommended for sensitive data),
+# you might want to ignore them from linting if they cause issues:
+.env
+.env.test
