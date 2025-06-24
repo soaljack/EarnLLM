@@ -40,7 +40,7 @@ router.get('/', authenticateApiKey, async (req, res, next) => {
       });
     }
 
-    res.json({
+    return res.json({
       systemModels,
       externalModels,
     });
@@ -88,7 +88,7 @@ router.get('/:id', authenticateApiKey, async (req, res, next) => {
       }
     }
 
-    res.json(model);
+    return res.json(model);
   } catch (error) {
     return next(error);
   }
@@ -139,7 +139,7 @@ router.post('/', authenticateJWT, requireAdmin, async (req, res, next) => {
       isActive: true,
     });
 
-    res.status(201).json(model);
+    return res.status(201).json(model);
   } catch (error) {
     return next(error);
   }
@@ -191,7 +191,7 @@ router.put('/:id', authenticateJWT, requireAdmin, async (req, res, next) => {
       isActive: isActive !== undefined ? isActive : model.isActive,
     });
 
-    res.json(model);
+    return res.json(model);
   } catch (error) {
     return next(error);
   }
@@ -215,7 +215,7 @@ router.delete('/:id', authenticateJWT, requireAdmin, async (req, res, next) => {
       return;
     }
 
-    res.json({ message: 'Model deleted successfully' });
+    return res.json({ message: 'Model deleted successfully' });
   } catch (error) {
     return next(error);
   }
@@ -294,7 +294,7 @@ router.post('/external', authenticateJWT, async (req, res, next) => {
       createdAt: model.createdAt,
     };
 
-    res.status(201).json(modelResponse);
+    return res.status(201).json(modelResponse);
   } catch (error) {
     return next(error);
   }
@@ -379,7 +379,7 @@ router.put('/external/:id', authenticateJWT, async (req, res, next) => {
       updatedAt: model.updatedAt,
     };
 
-    res.json(modelResponse);
+    return res.json(modelResponse);
   } catch (error) {
     return next(error);
   }
@@ -406,7 +406,7 @@ router.delete('/external/:id', authenticateJWT, async (req, res, next) => {
       return;
     }
 
-    res.json({ message: 'External model deleted successfully' });
+    return res.json({ message: 'External model deleted successfully' });
   } catch (error) {
     return next(error);
   }
@@ -451,7 +451,7 @@ router.post('/external/:id/test', authenticateJWT, async (req, res, next) => {
         lastTestedAt: new Date(),
       });
 
-      res.json({
+      return res.json({
         success: true,
         message: 'External model connection test successful',
         status: 'success',
@@ -465,7 +465,7 @@ router.post('/external/:id/test', authenticateJWT, async (req, res, next) => {
         lastTestedAt: new Date(),
       });
 
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         message: 'External model connection test failed',
         error: testError.message,

@@ -1,4 +1,3 @@
-
 // The full API key is seeded by jest.setup.live.js and available globally.
 
 // Helper to generate a unique user for testing if needed, or use a fixed one
