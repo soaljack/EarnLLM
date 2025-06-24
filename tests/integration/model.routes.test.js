@@ -102,10 +102,12 @@ describe('Model Routes', () => {
     });
 
     it('PUT /api/models/:id - should update a system model', async () => {
-      const updatedModel = { ...systemModel, description: 'Updated description' };
       const mockModelInstance = {
         ...systemModel,
-        update: jest.fn().mockResolvedValue(updatedModel),
+        update: jest.fn(function (updates) {
+          Object.assign(this, updates);
+          return Promise.resolve(this);
+        }),
       };
       LlmModel.findByPk.mockResolvedValue(mockModelInstance);
 
@@ -115,7 +117,7 @@ describe('Model Routes', () => {
         .expect(200);
 
       expect(LlmModel.findByPk).toHaveBeenCalledWith(systemModel.id.toString());
-      expect(mockModelInstance.update).toHaveBeenCalledWith(expect.objectContaining({ description: 'Updated description' }));
+      expect(mockModelInstance.update).toHaveBeenCalledWith({ description: 'Updated description' });
       expect(response.body.description).toBe('Updated description');
     });
   });
@@ -161,10 +163,12 @@ describe('Model Routes', () => {
     });
 
     it('PUT /api/models/external/:id - should update an external model', async () => {
-      const updatedModel = { ...externalModel, name: 'An Updated Name' };
       const mockModelInstance = {
         ...externalModel,
-        update: jest.fn().mockResolvedValue(updatedModel),
+        update: jest.fn(function (updates) {
+          Object.assign(this, updates);
+          return Promise.resolve(this);
+        }),
       };
       ExternalModel.findOne.mockResolvedValue(mockModelInstance);
 
@@ -176,8 +180,7 @@ describe('Model Routes', () => {
       expect(ExternalModel.findOne).toHaveBeenCalledWith({
         where: { id: externalModel.id.toString(), UserId: testUser.id },
       });
-      expect(mockModelInstance.update).toHaveBeenCalledWith(expect.objectContaining({ name: 'An Updated Name' }));
-      mockModelInstance.update.mockResolvedValue({ ...externalModel, ...updateData });
+      expect(mockModelInstance.update).toHaveBeenCalledWith({ name: 'An Updated Name' });
       expect(response.body.name).toBe('An Updated Name');
     });
 

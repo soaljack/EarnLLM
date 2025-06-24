@@ -1,7 +1,6 @@
 const request = require('supertest');
-const app = require('../../app');
-const { User, PricingPlan, BillingAccount } = require('../../src/models');
 
+jest.mock('../../src/models');
 // Mock the JWT library to control token generation
 jest.mock('jsonwebtoken', () => ({
   ...jest.requireActual('jsonwebtoken'), // Retain original functionalities
@@ -9,9 +8,28 @@ jest.mock('jsonwebtoken', () => ({
 }));
 
 describe('Authentication Routes', () => {
+  let app;
+  let User;
+  let PricingPlan;
+  let BillingAccount;
+  let sequelize;
+  let mockTransaction;
+
   beforeEach(() => {
-    // Reset all mocks before each test to ensure isolation
+    jest.resetModules();
+    // eslint-disable-next-line global-require
+    app = require('../../app');
+    // eslint-disable-next-line global-require
+    const models = require('../../src/models');
+    User = models.User;
+    PricingPlan = models.PricingPlan;
+    BillingAccount = models.BillingAccount;
+    sequelize = models.sequelize;
+
     jest.clearAllMocks();
+
+    mockTransaction = { commit: jest.fn(), rollback: jest.fn() };
+    sequelize.transaction.mockImplementation(async (cb) => cb(mockTransaction));
   });
 
   describe('POST /api/auth/register', () => {
