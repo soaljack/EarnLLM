@@ -27,7 +27,7 @@ jest.mock('../../src/models', () => ({
       rollback: jest.fn(),
     })),
     fn: jest.fn((func, col) => `${func}(${col})`),
-    col: jest.fn(col => col),
+    col: jest.fn((col) => col),
   },
 }));
 
@@ -64,8 +64,12 @@ describe('User Routes', () => {
       validatePassword: jest.fn(),
       save: jest.fn().mockReturnThis(),
       get() {
-        const { validatePassword, save, get, comparePassword, ...rest } = this;
-        return rest;
+        const userCopy = { ...this };
+        delete userCopy.validatePassword;
+        delete userCopy.save;
+        delete userCopy.get;
+        delete userCopy.comparePassword;
+        return userCopy;
       },
       comparePassword: jest.fn(),
     };
