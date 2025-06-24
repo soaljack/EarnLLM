@@ -36,7 +36,7 @@ jobs:
         env:
           # Use a mock/test environment for CI
           NODE_ENV: test
-          JWT_SECRET: a_secure_random_string_for_testing
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
           # The tests use a mock Stripe key, so this can be a placeholder
           STRIPE_SECRET_KEY: sk_test_mock
           STRIPE_WEBHOOK_SECRET: whsec_mock
