@@ -12,7 +12,7 @@ jest.mock('../../src/middleware/auth.middleware', () => ({
 const authMiddleware = require('../../src/middleware/auth.middleware');
 
 describe('Billing Routes', () => {
-    let testUser;
+  let testUser;
   let proPlan;
 
   beforeEach(() => {

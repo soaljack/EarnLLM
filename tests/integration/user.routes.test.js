@@ -29,7 +29,7 @@ describe('User Routes', () => {
       isActive: true,
       isAdmin: false,
       validatePassword: jest.fn(),
-      update: jest.fn(function (values) {
+      update: jest.fn(function updateMock(values) {
         Object.assign(this, values);
         return Promise.resolve(this);
       }),

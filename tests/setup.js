@@ -10,7 +10,7 @@ process.env.DB_NAME = 'earnllm_test';
 
 // Import mocks
 const sequelizeMock = require('./mocks/sequelize.mock');
-const authMiddlewareMock = require('./mocks/auth.middleware.mock');
+const _authMiddlewareMock = require('./mocks/auth.middleware.mock');
 const authHelpersMock = require('./mocks/authHelpers.mock');
 
 // Mock external services

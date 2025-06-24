@@ -15,9 +15,15 @@ jest.mock('http-errors', () => jest.fn((code, message) => {
 }));
 
 const redis = require('redis');
-const { rateLimitByPlan, checkDailyQuota, checkTokenAllowance, connectRateLimiter, closeRateLimiter } = require('../../../src/middleware/rateLimit.middleware');
-const { ApiUsage, BillingAccount } = require('../../../src/models');
 const createError = require('http-errors');
+const {
+  rateLimitByPlan,
+  checkDailyQuota,
+  checkTokenAllowance,
+  connectRateLimiter,
+  closeRateLimiter,
+} = require('../../../src/middleware/rateLimit.middleware');
+const { ApiUsage, BillingAccount } = require('../../../src/models');
 
 const mockRedisClient = {
   isReady: true,

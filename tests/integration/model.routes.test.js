@@ -129,7 +129,9 @@ describe('Model Routes', () => {
 
       const response = await request(app).post('/api/models/external').send(externalModelData).expect(201);
 
-      expect(ExternalModel.create).toHaveBeenCalledWith({ ...externalModelData, UserId: testUser.id });
+      expect(ExternalModel.create).toHaveBeenCalledWith({
+        ...externalModelData, UserId: testUser.id,
+      });
       expect(response.body.name).toBe(externalModelData.name);
     });
 
@@ -139,7 +141,9 @@ describe('Model Routes', () => {
       const externalModelData = { name: 'Forbidden Model', apiKey: 'key' };
       const response = await request(app).post('/api/models/external').send(externalModelData).expect(403);
 
-      expect(response.body.message).toBe('Your current plan does not allow creating external models (BYOM).');
+      expect(response.body.message).toBe(
+        'Your current plan does not allow creating external models (BYOM).',
+      );
       expect(ExternalModel.create).not.toHaveBeenCalled();
     });
 
@@ -156,7 +160,9 @@ describe('Model Routes', () => {
         .send({ name: 'An Updated Name' })
         .expect(200);
 
-      expect(ExternalModel.findOne).toHaveBeenCalledWith({ where: { id: externalModel.id.toString(), UserId: testUser.id } });
+      expect(ExternalModel.findOne).toHaveBeenCalledWith({
+        where: { id: externalModel.id.toString(), UserId: testUser.id },
+      });
       expect(mockModelInstance.update).toHaveBeenCalledWith({ name: 'An Updated Name' });
       expect(response.body.name).toBe('An Updated Name');
     });
@@ -166,7 +172,9 @@ describe('Model Routes', () => {
 
       await request(app).delete(`/api/models/external/${externalModel.id}`).expect(204);
 
-      expect(ExternalModel.findOne).toHaveBeenCalledWith({ where: { id: externalModel.id.toString(), UserId: testUser.id } });
+      expect(ExternalModel.findOne).toHaveBeenCalledWith({
+        where: { id: externalModel.id.toString(), UserId: testUser.id },
+      });
       expect(externalModel.destroy).toHaveBeenCalled();
     });
 

@@ -32,7 +32,7 @@ describe('Authentication Routes', () => {
           email: registerUserPayload.email,
           firstName: registerUserPayload.firstName,
           lastName: registerUserPayload.lastName,
-        })
+        }),
       };
       const mockStarterPlan = { id: 1, code: 'starter' };
 
@@ -56,7 +56,7 @@ describe('Authentication Routes', () => {
           UserId: mockNewUser.id,
           PricingPlanId: mockStarterPlan.id,
         },
-        expect.any(Object)
+        expect.any(Object),
       );
 
       expect(response.body.user.email).toBe(registerUserPayload.email);
