@@ -115,7 +115,7 @@ describe('Billing Routes', () => {
 
     test('should require authentication', async () => {
       // Override mock to simulate auth failure for this test only
-      authMiddleware.authenticateJWT.mockImplementation((req, res, next) => {
+      authMiddleware.authenticateJWT.mockImplementation((req, res, _next) => {
         res.status(401).json({ error: 'Unauthorized' });
       });
       await request(app).get('/api/billing/plans').expect(401);

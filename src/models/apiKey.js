@@ -1,8 +1,46 @@
-const { DataTypes } = require('sequelize');
+const { Model, DataTypes } = require('sequelize');
 const crypto = require('crypto');
 
 module.exports = (sequelize) => {
-  const ApiKey = sequelize.define('ApiKey', {
+  class ApiKey extends Model {
+    /**
+     * Static method to generate a new API key.
+     * This is the single source of truth for key creation.
+     * @param {string} UserId - The UUID of the user who owns the key.
+     * @param {string} name - A descriptive name for the key.
+     * @returns {{ fullKey: string, newApiKey: ApiKey }} The full, unhashed key and the new ApiKey instance.
+     */
+    static async generateKey(UserId, name) {
+      const prefix = crypto.randomBytes(4).toString('hex');
+      const randomBytes = crypto.randomBytes(32).toString('hex');
+      const fullKeyRaw = `${prefix}${randomBytes}`;
+      const hashedKey = crypto.createHash('sha256').update(fullKeyRaw).digest('hex');
+
+      const newApiKey = await this.create({
+        UserId,
+        name,
+        prefix,
+        key: hashedKey,
+      });
+
+      return {
+        fullKey: `sk-${fullKeyRaw}`,
+        newApiKey,
+      };
+    }
+
+    /**
+     * Instance method to verify an API key against the stored hash.
+     * @param {string} keyToVerify - The raw API key to check.
+     * @returns {boolean} True if the key is valid.
+     */
+    verify(keyToVerify) {
+      const hashedInputKey = crypto.createHash('sha256').update(keyToVerify).digest('hex');
+      return this.key === hashedInputKey;
+    }
+  }
+
+  ApiKey.init({
     id: {
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
@@ -38,40 +76,10 @@ module.exports = (sequelize) => {
       allowNull: false,
     },
   }, {
+    sequelize,
+    modelName: 'ApiKey',
     timestamps: true,
   });
-
-  /**
-   * Static method to generate a new API key, save it to the database, and return the full key.
-   * This is the single source of truth for key creation.
-   * @param {string} UserId - The UUID of the user who owns the key.
-   * @param {string} name - A descriptive name for the key.
-   * @returns {{ fullKey: string, newApiKey: ApiKey }} The full, unhashed key and the new ApiKey instance.
-   */
-  ApiKey.generateKey = async (UserId, name) => {
-    const prefix = crypto.randomBytes(4).toString('hex');
-    const randomBytes = crypto.randomBytes(32).toString('hex');
-    const fullKeyRaw = `${prefix}${randomBytes}`;
-    const hashedKey = crypto.createHash('sha256').update(fullKeyRaw).digest('hex');
-
-    const newApiKey = await ApiKey.create({
-      UserId,
-      name,
-      prefix,
-      key: hashedKey,
-    });
-
-    return {
-      fullKey: `sk-${fullKeyRaw}`,
-      newApiKey,
-    };
-  };
-
-  // Instance method to verify API key
-  ApiKey.prototype.verify = function verify(keyToVerify) {
-    const hashedInputKey = crypto.createHash('sha256').update(keyToVerify).digest('hex');
-    return this.key === hashedInputKey;
-  };
 
   return ApiKey;
 };

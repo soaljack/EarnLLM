@@ -30,6 +30,7 @@ app.get('/health', (req, res) => {
 
 // Convert non-ApiError errors to ApiError
 const { errorConverter, errorHandler } = require('./src/middleware/error');
+
 app.use(errorConverter);
 
 // Handle all errors

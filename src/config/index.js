@@ -23,7 +23,7 @@ const envVarsSchema = Joi.object(
     STRIPE_SECRET_KEY: Joi.string().required().description('Stripe Secret Key'),
     STRIPE_WEBHOOK_SECRET: Joi.string().required().description('Stripe Webhook Secret'),
     FRONTEND_URL: Joi.string().required().description('Frontend URL for CORS'),
-  }
+  },
 )
   .unknown();
 

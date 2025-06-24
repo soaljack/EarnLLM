@@ -1,7 +1,7 @@
 const { Op } = require('sequelize');
 const createError = require('http-errors');
 const redis = require('redis');
-const { ApiUsage, PricingPlan, BillingAccount } = require('../models');
+const { ApiUsage, BillingAccount } = require('../models');
 
 let redisClient;
 

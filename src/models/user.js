@@ -1,8 +1,19 @@
-const { DataTypes } = require('sequelize');
+const { Model, DataTypes } = require('sequelize');
 const bcrypt = require('bcryptjs');
 
 module.exports = (sequelize) => {
-  const User = sequelize.define('User', {
+  class User extends Model {
+    /**
+     * Instance method to validate a password against the user's stored hash.
+     * @param {string} password - The password to validate.
+     * @returns {Promise<boolean>} True if the password is correct.
+     */
+    async validatePassword(password) {
+      return bcrypt.compare(password, this.password);
+    }
+  }
+
+  User.init({
     id: {
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
@@ -49,6 +60,8 @@ module.exports = (sequelize) => {
       allowNull: true,
     },
   }, {
+    sequelize,
+    modelName: 'User',
     timestamps: true,
     hooks: {
       beforeCreate: async (user) => {
@@ -65,11 +78,6 @@ module.exports = (sequelize) => {
       },
     },
   });
-
-  // Instance method to validate password
-  User.prototype.validatePassword = async function validatePassword(password) {
-    return bcrypt.compare(password, this.password);
-  };
 
   return User;
 };

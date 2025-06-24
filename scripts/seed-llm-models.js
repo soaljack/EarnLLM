@@ -45,7 +45,7 @@ const seedLlmModels = async () => {
     await sequelize.sync();
     console.log('Seeding LLM models...');
 
-    for (const modelData of models) {
+    const seedPromises = models.map(async (modelData) => {
       const [model, created] = await LlmModel.findOrCreate({
         where: { modelId: modelData.modelId },
         defaults: modelData,
@@ -58,7 +58,9 @@ const seedLlmModels = async () => {
         await model.update(modelData);
         console.log(`🔄 Updated model: ${model.name}`);
       }
-    }
+    });
+
+    await Promise.all(seedPromises);
 
     console.log('✅ LLM models seeded successfully!');
   } catch (error) {

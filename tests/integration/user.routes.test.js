@@ -41,7 +41,7 @@ describe('User Routes (Mocked)', () => {
       firstName: 'Test',
       lastName: 'User',
       isAdmin: false,
-      update: jest.fn().mockImplementation(function(data) {
+      update: jest.fn().mockImplementation(function update(data) {
         Object.assign(this, data);
         return Promise.resolve(this);
       }),

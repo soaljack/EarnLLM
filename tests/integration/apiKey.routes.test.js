@@ -53,7 +53,7 @@ describe('API Key Routes (Mocked)', () => {
     app.use('/api/api-keys', apiKeyRoutes);
 
     // Global error handler for cleaner test output
-    app.use((err, req, res, next) => {
+    app.use((err, req, res, _next) => {
       const status = err.status || 500;
       const message = err.message || 'Something went wrong';
       res.status(status).json({ status: 'error', message });

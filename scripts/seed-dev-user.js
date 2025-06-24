@@ -42,7 +42,7 @@ async function seedDevUser() {
     }
 
     // Find or create a billing account for the user
-    const [billingAccount, billingCreated] = await BillingAccount.findOrCreate({
+    const [_billingAccount, billingCreated] = await BillingAccount.findOrCreate({
       where: { UserId: user.id },
       defaults: {
         subscriptionStatus: 'active', // A sensible default for a free plan
@@ -72,7 +72,6 @@ async function seedDevUser() {
     console.log(`Email: ${user.email}`);
     console.log(`Password: ${password}`);
     console.log('------------------------------------');
-
   } catch (error) {
     console.error('❌ Failed to seed development user:', error);
     process.exit(1);

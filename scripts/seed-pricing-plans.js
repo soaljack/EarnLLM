@@ -30,18 +30,22 @@ async function seedPricingPlans() {
   try {
     await sequelize.sync();
 
-    for (const planData of plans) {
-      const [plan, created] = await PricingPlan.findOrCreate({
-        where: { code: planData.code }, // Use the unique code to find the plan
+    const planPromises = plans.map((planData) =>
+      PricingPlan.findOrCreate({
+        where: { code: planData.code },
         defaults: planData,
-      });
+      })
+    );
 
+    const settledPlans = await Promise.all(planPromises);
+
+    settledPlans.forEach(([plan, created]) => {
       if (created) {
         console.log(`✅ Created plan: ${plan.name}`);
       } else {
         console.log(`✅ Plan already exists: ${plan.name}`);
       }
-    }
+    });
 
     console.log('✨ Pricing plans seeded successfully!');
   } catch (error) {
