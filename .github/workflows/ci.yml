@@ -32,7 +32,7 @@ jobs:
         run: npm run lint
 
       - name: Run tests (with secret)
-        if: ${{ secrets.JWT_SECRET != '' }}
+        if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false)
         run: npm test
         env:
           NODE_ENV: test
@@ -41,7 +41,7 @@ jobs:
           STRIPE_WEBHOOK_SECRET: whsec_mock
 
       - name: Run tests (on fork)
-        if: ${{ secrets.JWT_SECRET == '' }}
+        if: github.event.pull_request.head.repo.fork == true
         run: npm test
         env:
           NODE_ENV: test
