@@ -1,5 +1,6 @@
 # EarnLLM
 
+[![CI Status](https://github.com/soaljack/EarnLLM/actions/workflows/ci.yml/badge.svg)](https://github.com/soaljack/EarnLLM/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 EarnLLM is a powerful, self-hostable API service designed to help developers monetize and manage access to Large Language Models (LLMs). It provides a flexible and scalable platform for offering tiered access, tracking usage, and handling billing for your AI-powered applications.
