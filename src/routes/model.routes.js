@@ -40,12 +40,12 @@ router.get('/', authenticateApiKey, async (req, res, next) => {
       });
     }
 
-    return res.json({
+    res.json({
       systemModels,
       externalModels,
     });
   } catch (error) {
-    return next(error);
+    next(error);
   }
 });
 
@@ -62,7 +62,8 @@ router.get('/:id', authenticateApiKey, async (req, res, next) => {
     const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
     if (!uuidRegex.test(id)) {
       // If the ID is not a valid UUID, it can't exist in the database.
-      return next(createError(404, 'Model not found'));
+      next(createError(404, 'Model not found'));
+      return;
     }
 
     // Try to find the model as a system model first
@@ -84,13 +85,14 @@ router.get('/:id', authenticateApiKey, async (req, res, next) => {
       });
 
       if (!model) {
-        return next(createError(404, 'Model not found'));
+        next(createError(404, 'Model not found'));
+      return;
       }
     }
 
-    return res.json(model);
+    res.json(model);
   } catch (error) {
-    return next(error);
+    next(error);
   }
 });
 
@@ -139,9 +141,9 @@ router.post('/', authenticateJWT, requireAdmin, async (req, res, next) => {
       isActive: true,
     });
 
-    return res.status(201).json(model);
+    res.status(201).json(model);
   } catch (error) {
-    return next(error);
+    next(error);
   }
 });
 
@@ -191,9 +193,9 @@ router.put('/:id', authenticateJWT, requireAdmin, async (req, res, next) => {
       isActive: isActive !== undefined ? isActive : model.isActive,
     });
 
-    return res.json(model);
+    res.json(model);
   } catch (error) {
-    return next(error);
+    next(error);
   }
 });
 
@@ -215,9 +217,9 @@ router.delete('/:id', authenticateJWT, requireAdmin, async (req, res, next) => {
       return;
     }
 
-    return res.json({ message: 'Model deleted successfully' });
+    res.json({ message: 'Model deleted successfully' });
   } catch (error) {
-    return next(error);
+    next(error);
   }
 });
 
@@ -294,9 +296,9 @@ router.post('/external', authenticateJWT, async (req, res, next) => {
       createdAt: model.createdAt,
     };
 
-    return res.status(201).json(modelResponse);
+    res.status(201).json(modelResponse);
   } catch (error) {
-    return next(error);
+    next(error);
   }
 });
 
@@ -379,9 +381,9 @@ router.put('/external/:id', authenticateJWT, async (req, res, next) => {
       updatedAt: model.updatedAt,
     };
 
-    return res.json(modelResponse);
+    res.json(modelResponse);
   } catch (error) {
-    return next(error);
+    next(error);
   }
 });
 
@@ -406,9 +408,9 @@ router.delete('/external/:id', authenticateJWT, async (req, res, next) => {
       return;
     }
 
-    return res.json({ message: 'External model deleted successfully' });
+    res.json({ message: 'External model deleted successfully' });
   } catch (error) {
-    return next(error);
+    next(error);
   }
 });
 
@@ -451,7 +453,7 @@ router.post('/external/:id/test', authenticateJWT, async (req, res, next) => {
         lastTestedAt: new Date(),
       });
 
-      return res.json({
+      res.json({
         success: true,
         message: 'External model connection test successful',
         status: 'success',
@@ -465,7 +467,7 @@ router.post('/external/:id/test', authenticateJWT, async (req, res, next) => {
         lastTestedAt: new Date(),
       });
 
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         message: 'External model connection test failed',
         error: testError.message,
@@ -474,7 +476,7 @@ router.post('/external/:id/test', authenticateJWT, async (req, res, next) => {
       });
     }
   } catch (error) {
-    return next(error);
+    next(error);
   }
 });
 
