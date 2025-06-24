@@ -2,7 +2,34 @@ const request = require('supertest');
 
 // Hoist mocks to the top
 jest.mock('../../src/middleware/auth.middleware');
-jest.mock('../../src/models');
+jest.mock('../../src/models', () => ({
+  User: {
+    findByPk: jest.fn(),
+    findAndCountAll: jest.fn(),
+    findOne: jest.fn(),
+    count: jest.fn(),
+    prototype: {
+      validatePassword: jest.fn(),
+      save: jest.fn(),
+      get: jest.fn(),
+      comparePassword: jest.fn(),
+    },
+  },
+  ApiUsage: {
+    sum: jest.fn(),
+    findAll: jest.fn(),
+    findOne: jest.fn(),
+    findAndCountAll: jest.fn(),
+  },
+  sequelize: {
+    transaction: jest.fn(() => ({
+      commit: jest.fn(),
+      rollback: jest.fn(),
+    })),
+    fn: jest.fn((func, col) => `${func}(${col})`),
+    col: jest.fn(col => col),
+  },
+}));
 
 describe('User Routes', () => {
   let app;
@@ -35,9 +62,12 @@ describe('User Routes', () => {
       isActive: true,
       isAdmin: false,
       validatePassword: jest.fn(),
-      save: jest.fn(function save() {
-        return Promise.resolve(this);
-      }),
+      save: jest.fn().mockReturnThis(),
+      get() {
+        const { validatePassword, save, get, comparePassword, ...rest } = this;
+        return rest;
+      },
+      comparePassword: jest.fn(),
     };
 
     adminUser = {

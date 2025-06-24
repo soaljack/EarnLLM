@@ -408,7 +408,7 @@ router.delete('/external/:id', authenticateJWT, async (req, res, next) => {
       return;
     }
 
-    res.json({ message: 'External model deleted successfully' });
+    res.status(204).send();
   } catch (error) {
     next(error);
   }

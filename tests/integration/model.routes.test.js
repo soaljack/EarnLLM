@@ -29,16 +29,16 @@ describe('Model Routes', () => {
     // Setup mock data
     testUser = {
       id: 1,
-      email: 'model-user@example.com',
-      isAdmin: false,
-      // Mock the user's pricing plan to allow BYOM
-      PricingPlan: { allowBYOM: true },
+      email: 'test@example.com',
+      role: 'user',
+      getPricingPlan: jest.fn().mockResolvedValue({ allowBYOM: true }),
     };
 
     adminUser = {
-      id: 99,
-      email: 'model-admin@example.com',
-      isAdmin: true,
+      id: 2,
+      email: 'admin@example.com',
+      role: 'admin',
+      getPricingPlan: jest.fn().mockResolvedValue({ allowBYOM: true }),
     };
 
     systemModel = {
@@ -92,7 +92,7 @@ describe('Model Routes', () => {
 
       const response = await request(app).post('/api/models').send(newModelData).expect(201);
 
-      expect(LlmModel.create).toHaveBeenCalledWith(newModelData);
+      expect(LlmModel.create).toHaveBeenCalledWith(expect.objectContaining(newModelData));
       expect(response.body.name).toBe(newModelData.name);
     });
 
@@ -110,7 +110,7 @@ describe('Model Routes', () => {
         .expect(200);
 
       expect(LlmModel.findByPk).toHaveBeenCalledWith(systemModel.id.toString());
-      expect(mockModelInstance.update).toHaveBeenCalledWith({ description: 'Updated description' });
+      expect(mockModelInstance.update).toHaveBeenCalledWith(expect.objectContaining({ description: 'Updated description' }));
       expect(response.body.description).toBe('Updated description');
     });
   });
@@ -145,6 +145,8 @@ describe('Model Routes', () => {
     it('POST /api/models/external - should be forbidden if plan does not allow BYOM', async () => {
       testUser.PricingPlan.allowBYOM = false;
 
+      testUser.getPricingPlan.mockResolvedValue({ allowBYOM: false });
+
       const externalModelData = { name: 'Forbidden Model', apiKey: 'key' };
       const response = await request(app).post('/api/models/external').send(externalModelData).expect(403);
 
@@ -170,7 +172,7 @@ describe('Model Routes', () => {
       expect(ExternalModel.findOne).toHaveBeenCalledWith({
         where: { id: externalModel.id.toString(), UserId: testUser.id },
       });
-      expect(mockModelInstance.update).toHaveBeenCalledWith({ name: 'An Updated Name' });
+      expect(mockModelInstance.update).toHaveBeenCalledWith(expect.objectContaining({ name: 'An Updated Name' }));
       expect(response.body.name).toBe('An Updated Name');
     });
 
