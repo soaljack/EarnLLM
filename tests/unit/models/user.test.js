@@ -1,6 +1,4 @@
 const { Sequelize, DataTypes } = require('sequelize');
-const UserModelDefinition = require('../../../src/models/user');
-
 // Mock bcrypt for testing BEFORE requiring the model logic that uses it
 jest.mock('bcryptjs', () => ({
   hash: jest.fn(),
@@ -8,6 +6,7 @@ jest.mock('bcryptjs', () => ({
 }));
 
 const bcrypt = require('bcryptjs');
+const UserModelDefinition = require('../../../src/models/user');
 
 describe('User Model', () => {
   let sequelize;

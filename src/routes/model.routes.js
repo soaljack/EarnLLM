@@ -86,7 +86,7 @@ router.get('/:id', authenticateApiKey, async (req, res, next) => {
 
       if (!model) {
         next(createError(404, 'Model not found'));
-      return;
+        return;
       }
     }
 

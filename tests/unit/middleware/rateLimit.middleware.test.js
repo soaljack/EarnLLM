@@ -3,6 +3,7 @@
  */
 const { rateLimitByPlan, checkDailyQuota, checkTokenAllowance } = require('../../../src/middleware/rateLimit.middleware');
 const { ApiUsage } = require('../../../src/models');
+const redis = require('redis');
 
 // Mock models
 jest.mock('../../../src/models', () => ({
@@ -40,7 +41,6 @@ jest.mock('redis', () => {
     zCard: jest.fn().mockReturnThis(),
     exec: jest.fn().mockResolvedValue([[null, 1], [null, 1], [null, 1], [null, 51]]),
   }));
-
 
   return {
     createClient: jest.fn().mockReturnValue(mockRedisClient),
@@ -122,7 +122,6 @@ describe('Rate Limiting Middleware', () => {
     });
 
     test('should block request when rate limit exceeded', async () => {
-      const redis = require('redis');
       const mockRedisClient = redis.createClient();
       // This setup mocks the 'rate-limiter-flexible' library's response for a blocked request
       const rateLimitError = { remainingPoints: 0 };
