@@ -6,7 +6,10 @@ const { PricingPlan } = require('../../src/models');
 // Mock external dependencies
 jest.mock('stripe');
 jest.mock('../../src/middleware/auth.middleware', () => ({
-  authenticateJWT: jest.fn((req, res, next) => next()),
+  authenticateJWT: jest.fn(),
+  authenticateApiKey: jest.fn(),
+  requireAdmin: jest.fn(),
+  requireApiPermission: jest.fn().mockReturnValue((req, res, next) => next()),
 }));
 
 const authMiddleware = require('../../src/middleware/auth.middleware');

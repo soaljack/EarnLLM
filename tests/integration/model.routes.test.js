@@ -4,8 +4,10 @@ const { LlmModel, ExternalModel } = require('../../src/models');
 
 // Mock the entire auth middleware module
 jest.mock('../../src/middleware/auth.middleware', () => ({
-  authenticateJWT: jest.fn((req, res, next) => next()),
-  requireAdmin: jest.fn((req, res, next) => next()),
+  authenticateJWT: jest.fn(),
+  authenticateApiKey: jest.fn(),
+  requireAdmin: jest.fn(),
+  requireApiPermission: jest.fn().mockReturnValue((req, res, next) => next()),
 }));
 
 const authMiddleware = require('../../src/middleware/auth.middleware');

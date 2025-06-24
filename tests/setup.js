@@ -90,18 +90,7 @@ jest.mock('../src/models', () => sequelizeMock);
 jest.doMock('../src/utils/auth', () => authHelpersMock, { virtual: true });
 jest.doMock('bcryptjs', () => authHelpersMock.bcrypt, { virtual: true });
 
-const { sequelize } = require('../src/models');
 
-beforeAll(async () => {
-  // Establish database connection
-  await sequelize.authenticate();
-});
-
-afterAll(async () => {
-  // Close database connection
-  await sequelize.close();
-  console.log('Test database connection closed.');
-});
 
 // Reset mocks between tests
 beforeEach(() => {
