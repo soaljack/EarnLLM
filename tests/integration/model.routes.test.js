@@ -29,9 +29,13 @@ describe('Model Routes', () => {
     // Setup mock data
     testUser = {
       id: 1,
-      email: 'test@example.com',
+      email: 'model-routes-test@example.com',
       role: 'user',
-      getPricingPlan: jest.fn().mockResolvedValue({ allowBYOM: true }),
+      getPricingPlan: jest.fn().mockResolvedValue({
+        allowBYOM: true,
+        allowCustomModels: true,
+      }),
+      PricingPlan: { allowBYOM: true },
     };
 
     adminUser = {
@@ -67,7 +71,8 @@ describe('Model Routes', () => {
       LlmModel.findAll.mockResolvedValue([systemModel]);
       ExternalModel.findAll.mockResolvedValue([externalModel]);
 
-      const response = await request(app).get('/api/models').expect(200);
+      const response = await request(app).get('/api/models');
+      expect(response.status).toBe(200);
 
       expect(LlmModel.findAll).toHaveBeenCalled();
       expect(ExternalModel.findAll).toHaveBeenCalledWith({ where: { UserId: testUser.id } });
@@ -125,34 +130,33 @@ describe('Model Routes', () => {
     });
 
     it('POST /api/models/external - should create a new external model if plan allows', async () => {
+      testUser.getPricingPlan.mockResolvedValue({ allowBYOM: true });
       const externalModelData = {
-        name: 'My New Claude',
-        provider: 'anthropic',
-        modelId: 'claude-3-opus',
-        apiKey: 'test-key',
+        name: 'My Custom Model',
+        provider: 'custom',
+        modelId: 'custom-123',
+        apiKey: 'super-secret-key',
+        apiEndpoint: 'https://api.custom.com/chat',
       };
-      const mockCreatedModel = { id: 202, ...externalModelData, UserId: testUser.id };
+      const mockCreatedModel = { ...externalModelData, id: 201, UserId: testUser.id };
       ExternalModel.create.mockResolvedValue(mockCreatedModel);
 
-      const response = await request(app).post('/api/models/external').send(externalModelData).expect(201);
+      const response = await request(app).post('/api/models/external').send(externalModelData);
 
+      expect(response.status).toBe(201);
       expect(ExternalModel.create).toHaveBeenCalledWith({
         ...externalModelData, UserId: testUser.id,
       });
-      expect(response.body.name).toBe(externalModelData.name);
+      expect(response.body).toEqual(expect.objectContaining({ name: 'My Custom Model' }));
     });
 
     it('POST /api/models/external - should be forbidden if plan does not allow BYOM', async () => {
-      testUser.PricingPlan.allowBYOM = false;
-
       testUser.getPricingPlan.mockResolvedValue({ allowBYOM: false });
 
-      const externalModelData = { name: 'Forbidden Model', apiKey: 'key' };
-      const response = await request(app).post('/api/models/external').send(externalModelData).expect(403);
-
-      expect(response.body.message).toBe(
-        'Your current plan does not allow creating external models (BYOM).',
-      );
+      const externalModelData = { name: 'test' };
+      const response = await request(app).post('/api/models/external').send(externalModelData);
+      expect(response.status).toBe(403);
+      expect(response.body.message).toBe('Your current plan does not allow creating external models. Please upgrade your plan.');
       expect(ExternalModel.create).not.toHaveBeenCalled();
     });
 
@@ -173,6 +177,7 @@ describe('Model Routes', () => {
         where: { id: externalModel.id.toString(), UserId: testUser.id },
       });
       expect(mockModelInstance.update).toHaveBeenCalledWith(expect.objectContaining({ name: 'An Updated Name' }));
+      mockModelInstance.update.mockResolvedValue({ ...externalModel, ...updateData });
       expect(response.body.name).toBe('An Updated Name');
     });
 
@@ -181,10 +186,9 @@ describe('Model Routes', () => {
 
       await request(app).delete(`/api/models/external/${externalModel.id}`).expect(204);
 
-      expect(ExternalModel.findOne).toHaveBeenCalledWith({
+      expect(ExternalModel.destroy).toHaveBeenCalledWith({
         where: { id: externalModel.id.toString(), UserId: testUser.id },
       });
-      expect(externalModel.destroy).toHaveBeenCalled();
     });
 
     it("should not find another user's model to update", async () => {

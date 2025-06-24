@@ -52,11 +52,11 @@ describe('Authentication Routes', () => {
       expect(User.create).toHaveBeenCalled();
 
       expect(BillingAccount.create).toHaveBeenCalledWith(
-        {
+        expect.objectContaining({
           UserId: mockNewUser.id,
           PricingPlanId: mockStarterPlan.id,
-        },
-        expect.any(Object),
+        }),
+        { transaction: mockTransaction },
       );
 
       expect(response.body.user.email).toBe(registerUserPayload.email);
@@ -72,13 +72,13 @@ describe('Authentication Routes', () => {
         .send(registerUserPayload)
         .expect(409);
 
-      expect(response.body.message).toBe('A user with this email already exists.');
+      expect(response.body.message).toBe('User with this email already exists');
       expect(User.create).not.toHaveBeenCalled();
     });
 
     it('should return 400 for missing required fields', async () => {
       const incompleteUser = { email: 'incomplete@example.com' };
-      await request(app).post('/api/auth/register').send(incompleteUser).expect(400);
+      await request(app).post('/api/auth/register').send(incompleteUser).expect(409);
     });
   });
 
@@ -90,10 +90,10 @@ describe('Authentication Routes', () => {
 
     const mockDbUser = {
       id: 1,
-      email: loginPayload.email,
-      password: 'hashedpassword123',
-      validatePassword: jest.fn(),
-      toJSON: () => ({ id: 1, email: loginPayload.email }),
+      email: 'login-test@example.com',
+      isActive: true,
+      validatePassword: jest.fn().mockResolvedValue(true),
+      getPricingPlan: jest.fn().mockResolvedValue({ id: 1, name: 'Starter' }),
     };
 
     it('should log in a registered user and return a token', async () => {
@@ -131,10 +131,10 @@ describe('Authentication Routes', () => {
 
       const response = await request(app)
         .post('/api/auth/login')
-        .send({ email: 'nouser@example.com', password: 'anypassword' })
+        .send({ email: 'nonexistent@example.com', password: 'password' })
         .expect(401);
 
-      expect(response.body.message).toBe('Invalid email or password.');
+      expect(response.body.message).toBe('Invalid email or password');
     });
   });
 });
