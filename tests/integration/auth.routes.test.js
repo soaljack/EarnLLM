@@ -1,117 +1,127 @@
 const request = require('supertest');
-const express = require('express');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-
-// Mock dependencies
-jest.mock('bcryptjs');
-jest.mock('jsonwebtoken');
-jest.mock('../../src/models', () => ({
-  User: {
-    findOne: jest.fn(),
-    create: jest.fn(),
-  },
-  PricingPlan: {
-    findOne: jest.fn(),
-  },
-  BillingAccount: {
-    create: jest.fn(),
-  },
-}));
-
-// Import modules under test
-const authRoutes = require('../../src/routes/auth.routes');
+const app = require('../../app');
 const { User, PricingPlan, BillingAccount } = require('../../src/models');
 
-// Create a dedicated test app
-const app = express();
-app.use(express.json());
-app.use('/api/auth', authRoutes);
+// Mock the JWT library to control token generation
+jest.mock('jsonwebtoken', () => ({
+  ...jest.requireActual('jsonwebtoken'), // Retain original functionalities
+  sign: jest.fn().mockReturnValue('mock-jwt-token'),
+}));
 
-describe('Authentication Routes (Mocked)', () => {
-  let mockUser;
-
+describe('Authentication Routes', () => {
   beforeEach(() => {
-    jest.resetAllMocks();
-
-    mockUser = {
-      id: 'user-uuid-123',
-      email: 'test@example.com',
-      password: 'hashed_password',
-      firstName: 'Test',
-      lastName: 'User',
-      validatePassword: jest.fn(),
-      toJSON: jest.fn().mockReturnValue({ id: 'user-uuid-123', email: 'test@example.com' }),
-    };
-
-    // Default mock implementations
-    PricingPlan.findOne.mockResolvedValue({ id: 'plan-uuid-starter' });
-    BillingAccount.create.mockResolvedValue({ id: 'billing-uuid-123' });
-    jwt.sign.mockReturnValue('mock_jwt_token');
+    // Reset all mocks before each test to ensure isolation
+    jest.clearAllMocks();
   });
 
   describe('POST /api/auth/register', () => {
-    test('should register a new user successfully', async () => {
-      User.findOne.mockResolvedValue(null); // No existing user
-      User.create.mockResolvedValue(mockUser);
+    const registerUserPayload = {
+      email: 'register-test@example.com',
+      password: 'Password123!',
+      firstName: 'Register',
+      lastName: 'User',
+    };
 
-      const newUser = {
-        email: 'test@example.com',
-        password: 'Password123!',
-        firstName: 'Test',
+    it('should register a new user, create a billing account, and return a token', async () => {
+      const mockNewUser = {
+        id: 1,
+        ...registerUserPayload,
+        password: 'hashedpassword123',
+        toJSON: () => ({ id: 1, email: registerUserPayload.email, firstName: registerUserPayload.firstName, lastName: registerUserPayload.lastName }),
       };
+      const mockStarterPlan = { id: 1, code: 'starter' };
+
+      // Simulate user does not exist, then simulate successful creation
+      User.findOne.mockResolvedValue(null);
+      PricingPlan.findOne.mockResolvedValue(mockStarterPlan);
+      User.create.mockResolvedValue(mockNewUser);
+      BillingAccount.create.mockResolvedValue({ id: 1, UserId: mockNewUser.id });
 
       const response = await request(app)
         .post('/api/auth/register')
-        .send(newUser)
+        .send(registerUserPayload)
         .expect(201);
 
+      expect(User.findOne).toHaveBeenCalledWith({ where: { email: registerUserPayload.email } });
+      expect(PricingPlan.findOne).toHaveBeenCalledWith({ where: { code: 'starter' } });
       expect(User.create).toHaveBeenCalled();
-      expect(response.body.user.email).toBe('test@example.com');
-      expect(response.body.token).toBe('mock_jwt_token');
+      expect(BillingAccount.create).toHaveBeenCalledWith({ UserId: mockNewUser.id, PricingPlanId: mockStarterPlan.id }, expect.any(Object));
+      expect(response.body.user.email).toBe(registerUserPayload.email);
+      expect(response.body).toHaveProperty('token', 'mock-jwt-token');
     });
 
-    test('should return 409 if user already exists', async () => {
-      User.findOne.mockResolvedValue(mockUser); // User exists
+    it('should return 409 if the user already exists', async () => {
+      // Simulate user already exists
+      User.findOne.mockResolvedValue({ id: 1, email: registerUserPayload.email });
 
-      await request(app)
+      const response = await request(app)
         .post('/api/auth/register')
-        .send({ email: 'test@example.com', password: 'password' })
+        .send(registerUserPayload)
         .expect(409);
+
+      expect(response.body.message).toBe('A user with this email already exists.');
+      expect(User.create).not.toHaveBeenCalled();
+    });
+
+    it('should return 400 for missing required fields', async () => {
+      const incompleteUser = { email: 'incomplete@example.com' };
+      await request(app).post('/api/auth/register').send(incompleteUser).expect(400);
     });
   });
 
   describe('POST /api/auth/login', () => {
-    test('should login successfully with correct credentials', async () => {
-      User.findOne.mockResolvedValue(mockUser);
-      bcrypt.compare.mockResolvedValue(true); // Correct password
+    const loginPayload = {
+      email: 'login-test@example.com',
+      password: 'Password123!',
+    };
+
+    const mockDbUser = {
+      id: 1,
+      email: loginPayload.email,
+      password: 'hashedpassword123',
+      validatePassword: jest.fn(),
+      toJSON: () => ({ id: 1, email: loginPayload.email }),
+    };
+
+    it('should log in a registered user and return a token', async () => {
+      // Simulate user exists and password is correct
+      mockDbUser.validatePassword.mockResolvedValue(true);
+      User.findOne.mockResolvedValue(mockDbUser);
 
       const response = await request(app)
         .post('/api/auth/login')
-        .send({ email: 'test@example.com', password: 'correct_password' })
+        .send(loginPayload)
         .expect(200);
 
+      expect(User.findOne).toHaveBeenCalledWith({ where: { email: loginPayload.email } });
+      expect(mockDbUser.validatePassword).toHaveBeenCalledWith(loginPayload.password);
       expect(response.body.message).toBe('Login successful');
-      expect(response.body.token).toBe('mock_jwt_token');
+      expect(response.body).toHaveProperty('token', 'mock-jwt-token');
     });
 
-    test('should return 401 for incorrect password', async () => {
-      User.findOne.mockResolvedValue(mockUser);
-      bcrypt.compare.mockResolvedValue(false); // Incorrect password
+    it('should return 401 for an incorrect password', async () => {
+      // Simulate user exists but password is incorrect
+      mockDbUser.validatePassword.mockResolvedValue(false);
+      User.findOne.mockResolvedValue(mockDbUser);
 
-      await request(app)
+      const response = await request(app)
         .post('/api/auth/login')
-        .send({ email: 'test@example.com', password: 'wrong_password' })
+        .send(loginPayload)
         .expect(401);
+
+      expect(response.body.message).toBe('Invalid email or password.');
     });
 
-    test('should return 401 for non-existent user', async () => {
-      User.findOne.mockResolvedValue(null); // No user found
+    it('should return 401 for a non-existent user', async () => {
+      // Simulate user does not exist
+      User.findOne.mockResolvedValue(null);
 
-      await request(app)
+      const response = await request(app)
         .post('/api/auth/login')
-        .send({ email: 'not-found@example.com', password: 'any_password' })
+        .send({ email: 'nouser@example.com', password: 'anypassword' })
         .expect(401);
+
+      expect(response.body.message).toBe('Invalid email or password.');
     });
   });
 });

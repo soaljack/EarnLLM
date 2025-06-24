@@ -67,7 +67,7 @@ const rateLimitByPlan = async (req, res, next) => {
     // The user's pricing plan is already loaded by the auth middleware
     const pricingPlan = req.user.PricingPlan;
     if (!pricingPlan) {
-      return next(createError(500, 'Pricing plan not found'));
+      return next(createError(500, 'Pricing plan not found.'));
     }
 
     // If no rate limit is set for this plan, allow the request
@@ -121,8 +121,8 @@ const rateLimitByPlan = async (req, res, next) => {
     return next();
   } catch (error) {
     console.error('Rate limiting error:', error);
-    // If rate limiting fails, allow the request to proceed
-    return next();
+    // Pass the error to the global error handler
+    return next(error);
   }
 };
 
@@ -139,7 +139,7 @@ const checkDailyQuota = async (req, res, next) => {
     // The user's pricing plan is already loaded by the auth middleware
     const pricingPlan = req.user.PricingPlan;
     if (!pricingPlan) {
-      return next(createError(500, 'Pricing plan not found'));
+      return next(createError(500, 'Pricing plan not found.'));
     }
 
     // If no daily quota is set for this plan, allow the request
@@ -176,9 +176,9 @@ const checkDailyQuota = async (req, res, next) => {
 
     return next();
   } catch (error) {
-    console.error('Quota check error:', error);
-    // If quota check fails, allow the request to proceed
-    return next();
+    console.error('Daily quota check error:', error);
+    // Pass the error to the global error handler
+    return next(error);
   }
 };
 
@@ -196,7 +196,7 @@ const checkTokenAllowance = async (req, res, next) => {
     const billingAccount = await BillingAccount.findOne({ where: { UserId: req.user.id } });
 
     if (!pricingPlan || !billingAccount) {
-      return next(createError(500, 'Pricing plan or billing account not found'));
+      return next(createError(500, 'Pricing plan or billing account not found.'));
     }
 
     // Free tier with unlimited tokens or any unlimited token plan
@@ -222,8 +222,8 @@ const checkTokenAllowance = async (req, res, next) => {
     return next();
   } catch (error) {
     console.error('Token allowance check error:', error);
-    // If check fails, allow the request to proceed
-    return next();
+    // Pass the error to the global error handler
+    return next(error);
   }
 };
 

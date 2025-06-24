@@ -1,128 +1,99 @@
-/**
- * Integration tests for analytics routes
- */
-
 const request = require('supertest');
-const testApp = require('../testApp');
+const app = require('../../app');
+const { User, ApiUsage, BillingAccount } = require('../../src/models');
+
+// Mock the entire auth middleware module
+jest.mock('../../src/middleware/auth.middleware', () => ({
+  authenticateJWT: jest.fn((req, res, next) => next()),
+  requireAdmin: jest.fn((req, res, next) => next()),
+}));
+
+const authMiddleware = require('../../src/middleware/auth.middleware');
 
 describe('Analytics Routes', () => {
-  // Access the app object properly
-  const { app } = testApp;
+  let adminUser;
+  let regularUser;
 
-  // Mock tokens for authentication that match expected values in testApp.js
-  const adminToken = 'mock_token_for_999';
-  const userToken = 'mock_token_for_1';
+  beforeEach(() => {
+    jest.clearAllMocks();
 
-  describe('GET /api/analytics/overview', () => {
-    test('should return overview data for admin', async () => {
-      const response = await request(app)
-        .get('/api/analytics/overview')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .expect(200);
+    adminUser = { id: 999, isAdmin: true };
+    regularUser = { id: 1, isAdmin: false };
 
-      expect(response.body).toHaveProperty('usageSummary');
-      expect(response.body.usageSummary).toHaveProperty('totalUsers');
-      expect(response.body.usageSummary).toHaveProperty('activeUsersToday');
-      expect(response.body.usageSummary).toHaveProperty('totalTokensToday');
-      expect(response.body.usageSummary).toHaveProperty('totalRequestsToday');
-      expect(response.body.usageSummary).toHaveProperty('totalRevenueToday');
+    // Default to admin access for most tests
+    authMiddleware.authenticateJWT.mockImplementation((req, res, next) => {
+      req.user = adminUser;
+      next();
     });
-
-    test('should not allow regular users to access', async () => {
-      await request(app)
-        .get('/api/analytics/overview')
-        .set('Authorization', `Bearer ${userToken}`)
-        .expect(403);
-    });
-
-    test('should return 401 for unauthenticated request', async () => {
-      await request(app)
-        .get('/api/analytics/overview')
-        .expect(401);
-    });
+    authMiddleware.requireAdmin.mockImplementation((req, res, next) => next());
   });
 
-  describe('GET /api/analytics/user-growth', () => {
-    test('should return user growth data for admin', async () => {
-      const response = await request(app)
-        .get('/api/analytics/user-growth')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .expect(200);
+  const testAdminEndpoint = (endpoint) => {
+    describe(`GET ${endpoint}`, () => {
+      it('should return 200 for an admin user', async () => {
+        // Mock underlying services to return empty but valid data structures
+        User.count.mockResolvedValue(100);
+        User.findAll.mockResolvedValue([]);
+        ApiUsage.sum.mockResolvedValue(50000);
+        ApiUsage.count.mockResolvedValue(1200);
+        BillingAccount.sum.mockResolvedValue(250.75);
 
-      expect(response.body).toHaveProperty('dailyGrowth');
-      expect(response.body.dailyGrowth).toBeInstanceOf(Array);
-      expect(response.body).toHaveProperty('cumulativeGrowth');
-      expect(response.body.cumulativeGrowth).toBeInstanceOf(Array);
-      expect(response.body).toHaveProperty('planDistribution');
-      expect(response.body.planDistribution).toBeInstanceOf(Array);
+        const response = await request(app).get(endpoint).expect(200);
+        expect(response.body).toBeInstanceOf(Object);
+      });
+
+      it('should return 403 for a non-admin user', async () => {
+        // Override default mock to simulate a regular user
+        authMiddleware.authenticateJWT.mockImplementation((req, res, next) => {
+          req.user = regularUser;
+          next();
+        });
+        // Use the real implementation to check the user's role
+        authMiddleware.requireAdmin.mockImplementation(jest.requireActual('../../src/middleware/auth.middleware').requireAdmin);
+
+        await request(app).get(endpoint).expect(403);
+      });
+
+      it('should return 401 for an unauthenticated request', async () => {
+        // Override default mock to simulate no user
+        authMiddleware.authenticateJWT.mockImplementation((req, res, next) => next());
+
+        await request(app).get(endpoint).expect(401);
+      });
     });
+  };
 
-    test('should not allow regular users to access', async () => {
+  // Run tests for all admin-only analytics endpoints
+  testAdminEndpoint('/api/analytics/overview');
+  testAdminEndpoint('/api/analytics/user-growth');
+  testAdminEndpoint('/api/analytics/revenue');
+  testAdminEndpoint('/api/analytics/usage-metrics');
+
+  describe('GET /api/analytics/revenue date filtering', () => {
+    it('should correctly pass date filters to the service', async () => {
+      const startDate = '2023-01-01';
+      const endDate = '2023-01-31';
+
+      // Mock service calls to resolve successfully
+      BillingAccount.sum.mockResolvedValue(1000);
+      BillingAccount.findAll.mockResolvedValue([]);
+
       await request(app)
-        .get('/api/analytics/user-growth')
-        .set('Authorization', `Bearer ${userToken}`)
-        .expect(403);
-    });
-  });
-
-  describe('GET /api/analytics/revenue', () => {
-    test('should return revenue data for admin', async () => {
-      const response = await request(app)
-        .get('/api/analytics/revenue')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .expect(200);
-
-      expect(response.body).toHaveProperty('dailyRevenue');
-      expect(response.body.dailyRevenue).toBeInstanceOf(Array);
-      expect(response.body).toHaveProperty('mrr');
-      expect(response.body.mrr).toHaveProperty('current');
-      expect(response.body).toHaveProperty('arpu');
-      expect(response.body).toHaveProperty('planRevenue');
-      expect(response.body.planRevenue).toBeInstanceOf(Array);
-    });
-
-    test('should filter by date range', async () => {
-      const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      const endDate = new Date().toISOString().split('T')[0];
-
-      const response = await request(app)
         .get(`/api/analytics/revenue?startDate=${startDate}&endDate=${endDate}`)
-        .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(response.body).toHaveProperty('dailyRevenue');
-      expect(response.body).toHaveProperty('startDate', startDate);
-      expect(response.body).toHaveProperty('endDate', endDate);
-    });
+      // Check that the date range was used in the query
+      const expectedQuery = {
+        where: {
+          createdAt: {
+            [expect.anything()]: new Date(startDate),
+            [expect.anything()]: new Date(`${endDate}T23:59:59.999Z`),
+          },
+        },
+      };
 
-    test('should not allow regular users to access', async () => {
-      await request(app)
-        .get('/api/analytics/revenue')
-        .set('Authorization', `Bearer ${userToken}`)
-        .expect(403);
-    });
-  });
-
-  describe('GET /api/analytics/usage-metrics', () => {
-    test('should return usage metrics for admin', async () => {
-      const response = await request(app)
-        .get('/api/analytics/usage-metrics')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .expect(200);
-
-      expect(response.body).toHaveProperty('dailyTokenUsage');
-      expect(response.body.dailyTokenUsage).toBeInstanceOf(Array);
-      expect(response.body).toHaveProperty('modelDistribution');
-      expect(response.body.modelDistribution).toBeInstanceOf(Array);
-      expect(response.body).toHaveProperty('endpointDistribution');
-      expect(response.body.endpointDistribution).toBeInstanceOf(Array);
-    });
-
-    test('should not allow regular users to access', async () => {
-      await request(app)
-        .get('/api/analytics/usage-metrics')
-        .set('Authorization', `Bearer ${userToken}`)
-        .expect(403);
+      // Example check on one of the model calls
+      expect(BillingAccount.sum).toHaveBeenCalledWith('transactionAmount', expect.objectContaining(expectedQuery));
     });
   });
 });

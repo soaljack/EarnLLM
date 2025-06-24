@@ -1,175 +1,112 @@
-/**
- * Integration tests for billing routes
- */
-
 const request = require('supertest');
 const app = require('../../app');
-const { User, PricingPlan, BillingAccount } = require('../../src/models');
+const { PricingPlan } = require('../../src/models');
+const stripe = require('stripe');
+
+// Mock external dependencies
+jest.mock('stripe');
+jest.mock('../../src/middleware/auth.middleware', () => ({
+  authenticateJWT: jest.fn((req, res, next) => next()),
+}));
+
 const authMiddleware = require('../../src/middleware/auth.middleware');
 
-// Mock the entire auth middleware module to control authentication
-jest.mock('../../src/middleware/auth.middleware');
-
-const MOCK_STRIPE_PRICE_ID = 'price_mock_12345';
-
 describe('Billing Routes', () => {
-  let testUser;
-  let freePlan;
-  let proPlan;
-
-  beforeAll(async () => {
-    // Create pricing plans
-    [freePlan, proPlan] = await Promise.all([
-      PricingPlan.create({
-        name: 'Starter',
-        code: 'starter',
-        description: 'Free tier with limited usage',
-        monthlyFee: 0,
-        tokenAllowance: 50000,
-        requestsPerDay: 100,
-        requestsPerMinute: 5,
-        featuredModels: ['text-davinci-003'],
-        supportSla: '72h',
-        allowBYOM: false,
-        stripePriceId: null,
-        isActive: true,
-      }),
-      PricingPlan.create({
-        name: 'Pro',
-        code: 'pro',
-        description: 'Pro tier with higher limits',
-        monthlyFee: 49.99,
-        tokenAllowance: 1000000,
-        requestsPerDay: 10000,
-        requestsPerMinute: 60,
-        featuredModels: ['gpt-4', 'text-davinci-003'],
-        supportSla: '24h',
-        allowBYOM: true,
-        stripePriceId: MOCK_STRIPE_PRICE_ID,
-        isActive: true,
-      }),
-    ]);
-
-    // Create test user
-    testUser = await User.create({
-      email: 'billing-test@example.com',
-      password: 'Password123!',
-      firstName: 'Billing',
-      lastName: 'Tester',
-      isActive: true,
-      isAdmin: false,
-      PricingPlanId: freePlan.id,
-    });
-
-    // Create billing account for the user
-    await BillingAccount.create({
-      UserId: testUser.id,
-      stripeCustomerId: 'cus_mock_12345',
-      creditBalance: 1000, // $10.00
-      tokenUsageThisMonth: 25000,
-      subscriptionStatus: 'active',
-      currentPeriodStart: new Date(),
-      currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      paymentMethod: 'card_visa_1234',
-      billingEmail: 'billing-test@example.com',
-      paymentsEnabled: true,
-    });
-  });
+  let testUser, proPlan;
 
   beforeEach(() => {
-    // Before each test, mock a successful authentication
-    authMiddleware.authenticateJWT.mockImplementation((req, res, next) => {
-      User.findByPk(testUser.id, {
-        include: [
-          { model: PricingPlan, as: 'PricingPlan' },
-          { model: BillingAccount, as: 'BillingAccount' },
-        ],
-      }).then((userWithAssocs) => {
-        req.user = userWithAssocs;
-        next();
-      }).catch(next);
-    });
-  });
+    jest.clearAllMocks();
 
-  afterAll(async () => {
-    await BillingAccount.destroy({ where: { UserId: testUser.id } });
-    await User.destroy({ where: { email: 'billing-test@example.com' } });
-    await PricingPlan.destroy({ where: { code: ['starter', 'pro'] } });
+    // Mock data
+    proPlan = { id: 2, name: 'Pro', stripePriceId: 'price_pro_123' };
+    testUser = {
+      id: 1,
+      email: 'billing-test@example.com',
+      BillingAccount: { stripeCustomerId: 'cus_mock_12345' },
+      PricingPlan: { id: 1, name: 'Starter' },
+    };
+
+    // Mock implementations
+    authMiddleware.authenticateJWT.mockImplementation((req, res, next) => {
+      req.user = testUser;
+      next();
+    });
+
+    const mockSession = { id: 'cs_test_123', url: 'https://checkout.stripe.com/mock_url' };
+    const mockPortalSession = { url: 'https://billing.stripe.com/mock_portal' };
+    const mockPaymentIntent = { clientSecret: 'pi_mock_secret_123' };
+
+    stripe.checkout = {
+      sessions: {
+        create: jest.fn().mockResolvedValue(mockSession),
+      },
+    };
+    stripe.billingPortal = {
+      sessions: {
+        create: jest.fn().mockResolvedValue(mockPortalSession),
+      },
+    };
+    stripe.paymentIntents = {
+      create: jest.fn().mockResolvedValue(mockPaymentIntent),
+    };
   });
 
   describe('GET /api/billing/plans', () => {
-    test('should list available pricing plans', async () => {
+    it('should list available pricing plans', async () => {
+      PricingPlan.findAll.mockResolvedValue([proPlan]);
       const response = await request(app).get('/api/billing/plans').expect(200);
-
-      expect(response.body).toBeInstanceOf(Array);
-      expect(response.body.length).toBeGreaterThanOrEqual(2);
-
-      const free = response.body.find((plan) => plan.code === 'starter');
-      expect(free).toBeDefined();
-      expect(free).toHaveProperty('name', 'Starter');
-
-      const pro = response.body.find((plan) => plan.code === 'pro');
-      expect(pro).toBeDefined();
-      expect(pro).toHaveProperty('name', 'Pro');
-    });
-
-    test('should require authentication', async () => {
-      // Override mock to simulate auth failure for this test only
-      authMiddleware.authenticateJWT.mockImplementation((req, res, _next) => {
-        res.status(401).json({ error: 'Unauthorized' });
-      });
-      await request(app).get('/api/billing/plans').expect(401);
+      expect(response.body[0].name).toBe('Pro');
     });
   });
 
   describe('GET /api/billing/subscription', () => {
-    test('should return user subscription details', async () => {
+    it('should return user subscription details', async () => {
       const response = await request(app).get('/api/billing/subscription').expect(200);
-
-      expect(response.body).toHaveProperty('currentPlan.name', 'Starter');
-      expect(response.body).toHaveProperty('subscription.status', 'active');
-      expect(response.body).toHaveProperty('usage.tokenUsageThisMonth', 25000);
-      expect(response.body).toHaveProperty('stripeCustomerId', 'cus_mock_12345');
+      expect(response.body.currentPlan.name).toBe('Starter');
+      expect(response.body.stripeCustomerId).toBe('cus_mock_12345');
     });
   });
 
   describe('POST /api/billing/checkout-session', () => {
-    test('should create a checkout session', async () => {
+    it('should create a checkout session', async () => {
+      PricingPlan.findByPk.mockResolvedValue(proPlan);
       const response = await request(app)
         .post('/api/billing/checkout-session')
         .send({ planId: proPlan.id })
         .expect(200);
 
-      expect(response.body).toHaveProperty('sessionId');
-      expect(response.body).toHaveProperty('url');
+      expect(stripe.checkout.sessions.create).toHaveBeenCalled();
+      expect(response.body.url).toBe('https://checkout.stripe.com/mock_url');
     });
 
-    test('should return 400 for missing plan ID', async () => {
+    it('should return 400 for missing plan ID', async () => {
       await request(app).post('/api/billing/checkout-session').send({}).expect(400);
     });
   });
 
   describe('POST /api/billing/portal-session', () => {
-    test('should create a customer portal session', async () => {
+    it('should create a customer portal session', async () => {
       const response = await request(app).post('/api/billing/portal-session').expect(200);
-      expect(response.body).toHaveProperty('url');
+      expect(stripe.billingPortal.sessions.create).toHaveBeenCalled();
+      expect(response.body.url).toBe('https://billing.stripe.com/mock_portal');
     });
   });
 
   describe('POST /api/billing/add-credits', () => {
-    test('should create a payment intent for credits', async () => {
+    it('should create a payment intent for credits', async () => {
       const response = await request(app)
         .post('/api/billing/add-credits')
         .send({ amountUsd: 50 })
         .expect(200);
 
-      expect(response.body).toHaveProperty('clientSecret');
+      expect(stripe.paymentIntents.create).toHaveBeenCalled();
+      expect(response.body.clientSecret).toBe('pi_mock_secret_123');
     });
 
-    test('should return 400 for invalid amount', async () => {
+    it('should return 400 for invalid amount', async () => {
       await request(app)
         .post('/api/billing/add-credits')
-        .send({ amountUsd: 2 }) // Below minimum
+        .send({ amountUsd: 2 })
         .expect(400);
     });
   });

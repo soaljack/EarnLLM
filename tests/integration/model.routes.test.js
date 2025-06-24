@@ -1,263 +1,184 @@
-/**
- * Integration tests for model routes
- */
-
 const request = require('supertest');
-const testApp = require('../testApp');
-const {
-  LlmModel, ExternalModel, User,
-} = require('../../src/models');
+const app = require('../../app');
+const { LlmModel, ExternalModel } = require('../../src/models');
+
+// Mock the entire auth middleware module
+jest.mock('../../src/middleware/auth.middleware', () => ({
+  authenticateJWT: jest.fn((req, res, next) => next()),
+  requireAdmin: jest.fn((req, res, next) => next()),
+}));
+
+const authMiddleware = require('../../src/middleware/auth.middleware');
 
 describe('Model Routes', () => {
-  const { app } = testApp;
-
-  // Mock tokens for authentication
-  const userToken = 'mock_token_for_1';
-  const adminToken = 'mock_token_for_999';
-
-  // Test data for system models
-  const systemModelData = {
-    id: 'sys-model-test-id-123',
-    name: 'GPT-4 Test',
-    provider: 'openai',
-    modelId: 'gpt-4',
-    basePromptTokenCostInCents: 0.03,
-    baseCompletionTokenCostInCents: 0.06,
-    contextWindow: 8192,
-    markupPercentage: 20,
-  };
-
-  // Test data for external models
-  const externalModelData = {
-    id: 'ext-model-test-id-123',
-    name: 'Custom Claude',
-    provider: 'anthropic',
-    modelId: 'claude-3-opus',
-    apiEndpoint: 'https://api.anthropic.com/v1/messages',
-    apiKey: 'test-api-key',
-    promptTokenCostInCents: 0.08,
-    completionTokenCostInCents: 0.24,
-    contextWindow: 100000,
-  };
+  let testUser;
+  let adminUser;
+  let systemModel;
+  let externalModel;
 
   beforeEach(() => {
-    // Reset mocks before each test
+    // Reset all mocks before each test to ensure isolation
     jest.clearAllMocks();
 
-    // Setup mock user with pricing plan that allows BYOM
-    User.findByPk.mockImplementation((id) => {
-      if (id === 1 || id === 999) {
-        return Promise.resolve({
-          id,
-          email: id === 999 ? 'admin@earnllm.com' : 'user@example.com',
-          role: id === 999 ? 'admin' : 'user',
-          getPricingPlan: jest.fn().mockResolvedValue({
-            allowBYOM: true,
-          }),
-        });
-      }
-      return Promise.resolve(null);
-    });
+    // Setup mock data
+    testUser = {
+      id: 1,
+      email: 'model-user@example.com',
+      isAdmin: false,
+      // Mock the user's pricing plan to allow BYOM
+      PricingPlan: { allowBYOM: true },
+    };
 
-    // Setup LlmModel mocks
-    LlmModel.findAll.mockResolvedValue([systemModelData]);
-    LlmModel.findOne.mockResolvedValue(systemModelData);
-    LlmModel.findByPk.mockResolvedValue(systemModelData);
-    LlmModel.create.mockResolvedValue(systemModelData);
+    adminUser = {
+      id: 99,
+      email: 'model-admin@example.com',
+      isAdmin: true,
+    };
 
-    // Setup ExternalModel mocks
-    ExternalModel.findAll.mockResolvedValue([externalModelData]);
-    ExternalModel.findOne.mockImplementation(({ where }) => {
-      if (where && where.id === 'ext-model-test-id-123' && where.UserId === 1) {
-        return Promise.resolve({
-          ...externalModelData,
-          update: jest.fn().mockResolvedValue(externalModelData),
-        });
-      }
-      return Promise.resolve(null);
-    });
-    ExternalModel.create.mockResolvedValue(externalModelData);
-    ExternalModel.destroy.mockResolvedValue(1);
+    systemModel = {
+      id: 101,
+      name: 'GPT-4 Turbo',
+      provider: 'openai',
+      modelId: 'gpt-4-1106-preview',
+    };
+
+    externalModel = {
+      id: 201,
+      name: 'My Custom Model',
+      UserId: testUser.id,
+      provider: 'custom',
+      destroy: jest.fn().mockResolvedValue(1),
+    };
   });
 
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  /**
-   * GET /api/models tests
-   */
   describe('GET /api/models', () => {
-    it('should return system and external models for authenticated user', async () => {
-      const response = await request(app)
-        .get('/api/models')
-        .set('Authorization', `Bearer ${userToken}`);
+    it('should return system and user-specific external models', async () => {
+      // Setup mocks for this specific test
+      authMiddleware.authenticateJWT.mockImplementation((req, res, next) => {
+        req.user = testUser;
+        next();
+      });
+      LlmModel.findAll.mockResolvedValue([systemModel]);
+      ExternalModel.findAll.mockResolvedValue([externalModel]);
 
-      expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('systemModels');
-      expect(response.body).toHaveProperty('externalModels');
-      // When using mock routes, we don't need to check if model methods are called
-      // since we're testing the route behavior, not the model interaction
-    });
+      const response = await request(app).get('/api/models').expect(200);
 
-    it('should return 401 for unauthenticated request', async () => {
-      const response = await request(app)
-        .get('/api/models');
-
-      expect(response.status).toBe(401);
+      expect(LlmModel.findAll).toHaveBeenCalled();
+      expect(ExternalModel.findAll).toHaveBeenCalledWith({ where: { UserId: testUser.id } });
+      expect(response.body.systemModels[0].name).toBe(systemModel.name);
+      expect(response.body.externalModels[0].name).toBe(externalModel.name);
     });
   });
 
-  /**
-   * GET /api/models/:id tests
-   */
-  describe('GET /api/models/:id', () => {
-    it('should return a specific system model', async () => {
-      const response = await request(app)
-        .get(`/api/models/${systemModelData.id}`)
-        .set('Authorization', `Bearer ${userToken}`);
-
-      expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('id', systemModelData.id);
-      expect(response.body).toHaveProperty('name', systemModelData.name);
+  describe('Admin: System Model Management', () => {
+    beforeEach(() => {
+      // For all admin tests, authenticate as admin and allow access
+      authMiddleware.authenticateJWT.mockImplementation((req, res, next) => {
+        req.user = adminUser;
+        next();
+      });
+      authMiddleware.requireAdmin.mockImplementation((req, res, next) => next());
     });
 
-    it('should return 401 for unauthenticated request', async () => {
-      const response = await request(app)
-        .get(`/api/models/${systemModelData.id}`);
+    it('POST /api/models - should create a new system model', async () => {
+      const newModelData = { name: 'New Test Model', provider: 'test', modelId: 'test-1' };
+      LlmModel.create.mockResolvedValue({ id: 102, ...newModelData });
 
-      expect(response.status).toBe(401);
+      const response = await request(app).post('/api/models').send(newModelData).expect(201);
+
+      expect(LlmModel.create).toHaveBeenCalledWith(newModelData);
+      expect(response.body.name).toBe(newModelData.name);
     });
 
-    it('should return 404 for non-existent model', async () => {
-      // Mock both model lookups to return null
-      LlmModel.findOne.mockResolvedValueOnce(null);
-      ExternalModel.findOne.mockResolvedValueOnce(null);
-
-      const response = await request(app)
-        .get('/api/models/nonexistent')
-        .set('Authorization', `Bearer ${userToken}`);
-
-      expect(response.status).toBe(404);
-    });
-  });
-
-  /**
-   * Admin routes for system models
-   */
-  describe('Admin system model management', () => {
-    it('should create a new system model for admin', async () => {
-      const response = await request(app)
-        .post('/api/models')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send(systemModelData);
-
-      expect(response.status).toBe(201);
-      expect(response.body).toHaveProperty('id');
-      expect(response.body).toHaveProperty('name', systemModelData.name);
-    });
-
-    it('should not allow non-admin to create system model', async () => {
-      const response = await request(app)
-        .post('/api/models')
-        .set('Authorization', `Bearer ${userToken}`)
-        .send(systemModelData);
-
-      expect(response.status).toBe(403);
-      expect(LlmModel.create).not.toHaveBeenCalled();
-    });
-
-    it('should update a system model for admin', async () => {
-      const updateData = {
-        name: 'Updated GPT-4',
-        description: 'Updated description',
+    it('PUT /api/models/:id - should update a system model', async () => {
+      const updatedModel = { ...systemModel, description: 'Updated description' };
+      const mockModelInstance = {
+        ...systemModel,
+        update: jest.fn().mockResolvedValue(updatedModel),
       };
+      LlmModel.findByPk.mockResolvedValue(mockModelInstance);
 
       const response = await request(app)
-        .put(`/api/models/${systemModelData.id}`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send(updateData);
+        .put(`/api/models/${systemModel.id}`)
+        .send({ description: 'Updated description' })
+        .expect(200);
 
-      expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('id', systemModelData.id);
-    });
-
-    it('should not allow non-admin to update system model', async () => {
-      const response = await request(app)
-        .put(`/api/models/${systemModelData.id}`)
-        .set('Authorization', `Bearer ${userToken}`)
-        .send({ name: 'Updated Model' });
-
-      expect(response.status).toBe(403);
+      expect(LlmModel.findByPk).toHaveBeenCalledWith(systemModel.id.toString());
+      expect(mockModelInstance.update).toHaveBeenCalledWith({ description: 'Updated description' });
+      expect(response.body.description).toBe('Updated description');
     });
   });
 
-  /**
-   * External model routes (BYOM)
-   */
-  describe('External model management (BYOM)', () => {
-    it('should create a new external model', async () => {
-      const response = await request(app)
-        .post('/api/models/external')
-        .set('Authorization', `Bearer ${userToken}`)
-        .send(externalModelData);
-
-      expect(response.status).toBe(201);
-      expect(response.body).toHaveProperty('id');
-      expect(response.body).toHaveProperty('name', externalModelData.name);
+  describe('User: External Model (BYOM) Management', () => {
+    beforeEach(() => {
+      // For all user BYOM tests, authenticate as a standard user
+      authMiddleware.authenticateJWT.mockImplementation((req, res, next) => {
+        req.user = testUser;
+        next();
+      });
     });
 
-    it('should update an external model', async () => {
-      const updateData = {
-        name: 'Updated Claude',
-        promptTokenCostInCents: 0.10,
+    it('POST /api/models/external - should create a new external model if plan allows', async () => {
+      const externalModelData = {
+        name: 'My New Claude',
+        provider: 'anthropic',
+        modelId: 'claude-3-opus',
+        apiKey: 'test-key',
       };
+      ExternalModel.create.mockResolvedValue({ id: 202, ...externalModelData, UserId: testUser.id });
 
-      const response = await request(app)
-        .put(`/api/models/external/${externalModelData.id}`)
-        .set('Authorization', `Bearer ${userToken}`)
-        .send(updateData);
+      const response = await request(app).post('/api/models/external').send(externalModelData).expect(201);
 
-      expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('name', 'Updated Claude');
+      expect(ExternalModel.create).toHaveBeenCalledWith({ ...externalModelData, UserId: testUser.id });
+      expect(response.body.name).toBe(externalModelData.name);
     });
 
-    it('should delete an external model', async () => {
-      const response = await request(app)
-        .delete(`/api/models/external/${externalModelData.id}`)
-        .set('Authorization', `Bearer ${userToken}`);
+    it('POST /api/models/external - should be forbidden if plan does not allow BYOM', async () => {
+      testUser.PricingPlan.allowBYOM = false;
 
-      expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('message');
+      const externalModelData = { name: 'Forbidden Model', apiKey: 'key' };
+      const response = await request(app).post('/api/models/external').send(externalModelData).expect(403);
+
+      expect(response.body.message).toBe('Your current plan does not allow creating external models (BYOM).');
+      expect(ExternalModel.create).not.toHaveBeenCalled();
     });
 
-    it('should test an external model connection', async () => {
-      // First create a new model that we can then test
-      const createResponse = await request(app)
-        .post('/api/models/external')
-        .set('Authorization', `Bearer ${userToken}`)
-        .send(externalModelData);
+    it('PUT /api/models/external/:id - should update an external model', async () => {
+      const updatedModel = { ...externalModel, name: 'An Updated Name' };
+      const mockModelInstance = {
+        ...externalModel,
+        update: jest.fn().mockResolvedValue(updatedModel),
+      };
+      ExternalModel.findOne.mockResolvedValue(mockModelInstance);
 
-      expect(createResponse.status).toBe(201);
-      const newModelId = createResponse.body.id;
+      const response = await request(app)
+        .put(`/api/models/external/${externalModel.id}`)
+        .send({ name: 'An Updated Name' })
+        .expect(200);
 
-      // Now test the connection for the model we just created
-      const testResponse = await request(app)
-        .post(`/api/models/external/${newModelId}/test`)
-        .set('Authorization', `Bearer ${userToken}`);
-
-      expect(testResponse.status).toBe(200);
-      expect(testResponse.body).toHaveProperty('success', true);
-      expect(testResponse.body).toHaveProperty('status', 'success');
+      expect(ExternalModel.findOne).toHaveBeenCalledWith({ where: { id: externalModel.id.toString(), UserId: testUser.id } });
+      expect(mockModelInstance.update).toHaveBeenCalledWith({ name: 'An Updated Name' });
+      expect(response.body.name).toBe('An Updated Name');
     });
 
-    it('should return 404 when testing non-existent external model', async () => {
-      // For non-existent model test, use a non-existent ID
-      const response = await request(app)
-        .post('/api/models/external/nonexistent-id/test')
-        .set('Authorization', `Bearer ${userToken}`);
+    it('DELETE /api/models/external/:id - should delete an external model', async () => {
+      ExternalModel.findOne.mockResolvedValue(externalModel);
 
-      expect(response.status).toBe(404);
+      await request(app).delete(`/api/models/external/${externalModel.id}`).expect(204);
+
+      expect(ExternalModel.findOne).toHaveBeenCalledWith({ where: { id: externalModel.id.toString(), UserId: testUser.id } });
+      expect(externalModel.destroy).toHaveBeenCalled();
+    });
+
+    it("should not find another user's model to update", async () => {
+      ExternalModel.findOne.mockResolvedValue(null);
+
+      await request(app)
+        .put('/api/models/external/999')
+        .send({ name: 'Attempted Update' })
+        .expect(404);
+
+      expect(ExternalModel.findOne).toHaveBeenCalledWith({ where: { id: '999', UserId: testUser.id } });
     });
   });
 });

@@ -86,10 +86,22 @@ jest.mock('openai', () => ({
 // Mock database models
 jest.mock('../src/models', () => sequelizeMock);
 
-// Mock authentication middleware and helpers
-jest.doMock('../src/middleware/auth.middleware', () => authMiddlewareMock, { virtual: true });
+// Mock authentication helpers
 jest.doMock('../src/utils/auth', () => authHelpersMock, { virtual: true });
 jest.doMock('bcryptjs', () => authHelpersMock.bcrypt, { virtual: true });
+
+const { sequelize } = require('../src/models');
+
+beforeAll(async () => {
+  // Establish database connection
+  await sequelize.authenticate();
+});
+
+afterAll(async () => {
+  // Close database connection
+  await sequelize.close();
+  console.log('Test database connection closed.');
+});
 
 // Reset mocks between tests
 beforeEach(() => {

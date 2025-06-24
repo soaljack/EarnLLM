@@ -6,27 +6,28 @@ This guide provides a comprehensive overview of the testing strategy for the Ear
 
 The project has two primary test suites:
 
-1.  **Standard Tests (`npm test`)**: Fast-running unit and integration tests that use a mocked environment. These are ideal for rapid development and CI/CD checks.
+1.  **Standard Tests (`npm test`)**: Fast, reliable, and isolated unit and integration tests that run in a fully mocked environment. These are essential for rapid development and CI/CD checks.
 2.  **Live API Tests (`npm run test:live`)**: Slower end-to-end integration tests that run against real external services (PostgreSQL, Stripe, OpenAI). These are crucial for verifying real-world behavior before deployment.
 
-## Standard Tests
+## Standard (Mock-Based) Integration Tests
 
 -   **Command**: `npm test`
--   **Database**: Uses an in-memory SQLite database, requiring no external setup.
--   **External Services**: All external API calls (Stripe, OpenAI) are mocked to ensure tests are fast and independent of network conditions.
--   **Setup**: The test environment is configured by `tests/jest.setup.js` and torn down by `tests/jest.teardown.js`.
+-   **Database**: **No database connection is made.** All database interactions are simulated by mocking Sequelize models.
+-   **External Services**: All external API calls (e.g., Stripe, OpenAI) are mocked using `jest.mock()`.
 
-### Writing Mock-Based Integration Tests
+This mock-based approach is the standard for all integration tests. It ensures that tests are fast, stable, and completely isolated from external dependencies.
 
-For testing routes in isolation without a live database or the full application stack, follow this mock-based pattern. This approach improves test speed and reliability by removing external dependencies.
+### Key Principles for Writing Mock-Based Tests
 
-**Key Principles:**
+1.  **Mock External Modules**: Use `jest.mock()` at the top of your test file to replace any modules that make external calls. This includes our own modules like authentication middleware and Sequelize models, as well as third-party libraries like `stripe`.
 
-1.  **Define Mocks First**: All mock data and mock implementations must be defined at the top of the test file, *before* any `jest.mock()` calls or module imports. This is critical to prevent issues with Jest's module hoisting.
-2.  **Mock Entire Modules**: Use `jest.mock()` to replace entire modules, such as `../../src/models` or `../../src/middleware/auth.middleware`.
-3.  **Isolate the Test Environment**: Create a new Express app instance within your test file. Only apply the necessary middleware (e.g., `express.json()`) and the specific routes you are testing. This avoids loading the entire application.
+2.  **Isolate the Test Environment**: Create a new Express app instance within your test file. Only apply the necessary middleware (e.g., `express.json()`) and the specific router you are testing. This avoids loading the entire application and prevents side effects.
 
-**Example Structure:**
+3.  **Control the Data**: Mock the return values of model methods (e.g., `User.findByPk.mockResolvedValue(...)`) inside your tests to simulate different scenarios and control the data flow.
+
+4.  **Clear Mocks**: Use `jest.clearAllMocks()` in a `beforeEach` or `afterEach` block to ensure mocks from one test do not leak into another.
+
+### Example Structure
 
 ```javascript
 /**
@@ -34,46 +35,44 @@ For testing routes in isolation without a live database or the full application 
  */
 const request = require('supertest');
 const express = require('express');
-
-// 1. Define Mock Data & Implementations
-const mockUser = { id: 1, email: 'test@example.com' };
-const mockModels = {
-  User: { findByPk: jest.fn().mockResolvedValue(mockUser) },
-  // ... other models
-};
-const mockAuthMiddleware = {
-  authenticateJWT: (req, res, next) => {
-    req.user = mockUser;
-    next();
-  },
-};
-
-// 2. Mock Modules
-jest.mock('../../src/models', () => mockModels);
-jest.mock('../../src/middleware/auth.middleware', () => mockAuthMiddleware);
-
-// 3. Import the Route (module under test)
+const { User } = require('../../src/models'); // Import models to mock their methods
 const myRoutes = require('../../src/routes/my.routes');
 
-// 4. Set up Test Suite
+// Mock middleware and other external dependencies
+jest.mock('../../src/middleware/auth.middleware', () => ({
+  authenticateJWT: jest.fn((req, res, next) => next()), // Mock implementation
+}));
+
+const authMiddleware = require('../../src/middleware/auth.middleware');
+
 describe('My Routes (Mocked)', () => {
   let app;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    // 5. Create isolated Express app
+
+    // Setup an isolated Express app for this test suite
     app = express();
     app.use(express.json());
     app.use('/api/my-route', myRoutes);
+
+    // Mock the user that the authenticateJWT middleware will attach
+    const mockUser = { id: 1, email: 'test@example.com' };
+    authMiddleware.authenticateJWT.mockImplementation((req, res, next) => {
+      req.user = mockUser;
+      next();
+    });
   });
 
   test('GET /api/my-route should return user data', async () => {
-    const response = await request(app)
-      .get('/api/my-route')
-      .expect(200);
-    
-    expect(response.body).toHaveProperty('email', 'test@example.com');
-    expect(mockModels.User.findByPk).toHaveBeenCalledWith(1);
+    // Mock the data for this specific test case
+    const mockUserData = { id: 1, email: 'test@example.com', name: 'Test User' };
+    User.findByPk.mockResolvedValue(mockUserData);
+
+    const response = await request(app).get('/api/my-route/1').expect(200);
+
+    expect(response.body.name).toBe('Test User');
+    expect(User.findByPk).toHaveBeenCalledWith('1');
   });
 });
 ```
@@ -114,8 +113,8 @@ These tests are critical for ensuring the application functions correctly with r
 
 ### General Best Practices
 
--   Write standard tests for new business logic, mocking any dependencies.
--   Add live API tests for new endpoints or to cover critical user flows.
+-   Write standard, mock-based tests for all new business logic and endpoints.
+-   Add live API tests only for the most critical end-to-end user flows.
 
 ### **IMPORTANT**: Writing Live API Tests
 

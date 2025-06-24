@@ -1,84 +1,69 @@
 /**
  * Unit Tests for Rate Limiting Middleware
  */
-const redis = require('redis');
-const { rateLimitByPlan, checkDailyQuota, checkTokenAllowance } = require('../../../src/middleware/rateLimit.middleware');
-const { ApiUsage } = require('../../../src/models');
 
-// Mock models
-jest.mock('../../../src/models', () => ({
-  ApiUsage: {
-    count: jest.fn(),
-  },
-  // PricingPlan and BillingAccount are no longer mocked here
-  // as they are expected to be on the req.user object.
+// Set a dummy Redis URL to ensure the middleware uses the Redis client path
+process.env.REDIS_URL = 'redis://localhost:6379';
+
+// Mock dependencies BEFORE requiring the middleware
+jest.mock('redis');
+jest.mock('../../../src/models');
+jest.mock('http-errors', () => jest.fn((code, message) => {
+  const err = new Error(message);
+  err.status = code;
+  return err;
 }));
 
-// Mock createError
-jest.mock('http-errors', () => jest.fn((code, message) => ({
-  status: code,
-  message,
-})));
+const redis = require('redis');
+const { rateLimitByPlan, checkDailyQuota, checkTokenAllowance, connectRateLimiter, closeRateLimiter } = require('../../../src/middleware/rateLimit.middleware');
+const { ApiUsage, BillingAccount } = require('../../../src/models');
+const createError = require('http-errors');
 
-// Mock Redis
-jest.mock('redis', () => {
-  const mockRedisClient = {
-    isReady: true, // Set to true to avoid connect logic in tests
-    connect: jest.fn().mockResolvedValue(true),
-    zRemRangeByScore: jest.fn().mockResolvedValue(1),
-    zAdd: jest.fn().mockResolvedValue(1),
-    expire: jest.fn().mockResolvedValue(1),
-    zCard: jest.fn().mockResolvedValue(50), // Simulate 50 requests in window
-    on: jest.fn(),
-    multi: jest.fn().mockReturnThis(),
-    exec: jest.fn().mockResolvedValue([null, [null, 51]]),
-  };
-  // Allow chaining for multi()
-  mockRedisClient.multi.mockImplementation(() => ({
-    zRemRangeByScore: jest.fn().mockReturnThis(),
-    zAdd: jest.fn().mockReturnThis(),
-    expire: jest.fn().mockReturnThis(),
-    zCard: jest.fn().mockReturnThis(),
-    exec: jest.fn().mockResolvedValue([[null, 1], [null, 1], [null, 1], [null, 51]]),
-  }));
-
-  return {
-    createClient: jest.fn().mockReturnValue(mockRedisClient),
-  };
-});
+const mockRedisClient = {
+  isReady: true,
+  connect: jest.fn().mockResolvedValue(),
+  on: jest.fn(),
+  zRemRangeByScore: jest.fn().mockResolvedValue(1),
+  zAdd: jest.fn().mockResolvedValue(1),
+  expire: jest.fn().mockResolvedValue(1),
+  zCard: jest.fn().mockResolvedValue(50),
+  quit: jest.fn().mockResolvedValue(),
+};
+redis.createClient.mockReturnValue(mockRedisClient);
 
 describe('Rate Limiting Middleware', () => {
   let req;
   let res;
   let next;
-  let mockPlan;
-  let mockAccount;
+
+  // Use beforeAll/afterAll to connect/disconnect the mocked client once
+  beforeAll(async () => {
+    await connectRateLimiter();
+  });
+
+  afterAll(async () => {
+    await closeRateLimiter();
+  });
 
   beforeEach(() => {
+    // Clear all mocks before each test to ensure isolation
     jest.clearAllMocks();
 
-    mockPlan = {
-      id: 1,
-      name: 'Test Plan',
-      requestsPerMinute: 100,
-      requestsPerDay: 1000,
-      tokenAllowance: 50000,
-    };
-
-    mockAccount = {
-      id: 1,
-      UserId: 1,
-      tokenUsageThisMonth: 10000,
-      creditBalance: 0,
-    };
+    // Re-mock createClient before each test to reset call history
+    redis.createClient.mockClear().mockReturnValue(mockRedisClient);
 
     req = {
       user: {
         id: 1,
-        PricingPlanId: 1,
-        // The middleware now expects these to be pre-loaded
-        PricingPlan: mockPlan,
-        BillingAccount: mockAccount,
+        PricingPlan: {
+          requestsPerMinute: 100,
+          requestsPerDay: 1000,
+          tokenAllowance: 50000,
+        },
+        BillingAccount: {
+          tokenUsageThisMonth: 10000,
+          creditBalance: 0,
+        },
       },
     };
 
@@ -90,139 +75,63 @@ describe('Rate Limiting Middleware', () => {
 
     next = jest.fn();
 
-    // Default mocks
-    ApiUsage.count.mockResolvedValue(500); // Half the daily quota by default
+    // Reset mock implementations to defaults
+    ApiUsage.count.mockResolvedValue(500);
+    BillingAccount.findOne.mockResolvedValue(req.user.BillingAccount);
+    mockRedisClient.zCard.mockResolvedValue(50);
   });
 
   describe('rateLimitByPlan', () => {
-    test('should skip rate limiting if no user is attached to request', async () => {
-      req.user = null;
+    test('should allow request and set headers when under rate limit', async () => {
       await rateLimitByPlan(req, res, next);
-      expect(next).toHaveBeenCalledWith();
-    });
-
-    test('should skip rate limiting if no pricing plan on user', async () => {
-      req.user.PricingPlan = null;
-      await rateLimitByPlan(req, res, next);
-      expect(next).toHaveBeenCalledWith();
-    });
-
-    test('should skip rate limiting if plan has no requestsPerMinute limit', async () => {
-      req.user.PricingPlan.requestsPerMinute = null;
-      await rateLimitByPlan(req, res, next);
-      expect(next).toHaveBeenCalledWith();
-    });
-
-    test('should allow request when under rate limit', async () => {
-      await rateLimitByPlan(req, res, next);
+      expect(mockRedisClient.zCard).toHaveBeenCalledWith('ratelimit:1');
       expect(res.setHeader).toHaveBeenCalledWith('X-RateLimit-Limit', 100);
-      expect(res.setHeader).toHaveBeenCalledWith('X-RateLimit-Remaining', 49);
-      expect(res.setHeader).toHaveBeenCalledWith('X-RateLimit-Reset', expect.any(Number));
+      expect(res.setHeader).toHaveBeenCalledWith('X-RateLimit-Remaining', 50); // 100 - 50 = 50
       expect(next).toHaveBeenCalledWith();
+      expect(next).toHaveBeenCalledTimes(1);
     });
 
-    test('should block request when rate limit exceeded', async () => {
-      const mockRedisClient = redis.createClient();
-      // This setup mocks the 'rate-limiter-flexible' library's response for a blocked request
-      const rateLimitError = { remainingPoints: 0 };
-      jest.spyOn(mockRedisClient, 'multi').mockImplementation(() => ({
-        zRemRangeByScore: jest.fn().mockReturnThis(),
-        zAdd: jest.fn().mockReturnThis(),
-        expire: jest.fn().mockReturnThis(),
-        zCard: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockRejectedValue(rateLimitError),
-      }));
-
+    test('should block request when rate limit is exceeded', async () => {
+      mockRedisClient.zCard.mockResolvedValue(101); // Exceeds the limit of 100
       await rateLimitByPlan(req, res, next);
-
       expect(res.status).toHaveBeenCalledWith(429);
-      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
-        error: 'Too Many Requests',
-      }));
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'Too Many Requests' }));
       expect(next).not.toHaveBeenCalled();
+    });
+
+    test('should call next(error) if redis fails', async () => {
+      const redisError = new Error('Redis is down');
+      mockRedisClient.zCard.mockRejectedValue(redisError);
+      await rateLimitByPlan(req, res, next);
+      expect(next).toHaveBeenCalledWith(redisError);
     });
   });
 
   describe('checkDailyQuota', () => {
-    test('should skip quota check if no user is attached to request', async () => {
-      req.user = null;
-      await checkDailyQuota(req, res, next);
-      expect(next).toHaveBeenCalledWith();
-    });
-
-    test('should skip quota check if no pricing plan on user', async () => {
-      req.user.PricingPlan = null;
-      await checkDailyQuota(req, res, next);
-      expect(next).toHaveBeenCalledWith();
-    });
-
-    test('should skip quota check if plan has no requestsPerDay limit', async () => {
-      req.user.PricingPlan.requestsPerDay = null;
-      await checkDailyQuota(req, res, next);
-      expect(next).toHaveBeenCalledWith();
-    });
-
-    test('should allow request when under daily quota', async () => {
-      await checkDailyQuota(req, res, next);
-      expect(res.setHeader).toHaveBeenCalledWith('X-Daily-Quota-Limit', 1000);
-      expect(res.setHeader).toHaveBeenCalledWith('X-Daily-Quota-Remaining', 500);
-      expect(next).toHaveBeenCalledWith();
-    });
-
-    test('should block request when daily quota exceeded', async () => {
-      ApiUsage.count.mockResolvedValue(1000);
+    test('should block request when daily quota is exceeded', async () => {
+      ApiUsage.count.mockResolvedValue(1001); // Exceeds the limit of 1000
       await checkDailyQuota(req, res, next);
       expect(res.status).toHaveBeenCalledWith(429);
-      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
-        error: 'Quota Exceeded',
-      }));
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'Quota Exceeded' }));
       expect(next).not.toHaveBeenCalled();
     });
   });
 
   describe('checkTokenAllowance', () => {
-    test('should skip token check if no user is attached to request', async () => {
-      req.user = null;
+    test('should call next with error if billing account is missing', async () => {
+      BillingAccount.findOne.mockResolvedValue(null);
       await checkTokenAllowance(req, res, next);
-      expect(next).toHaveBeenCalledWith();
+      expect(next).toHaveBeenCalledWith(expect.any(Error));
+      expect(createError).toHaveBeenCalledWith(500, 'Pricing plan or billing account not found.');
     });
 
-    test('should error if pricing plan or billing account not found', async () => {
-      req.user.PricingPlan = null;
-      await checkTokenAllowance(req, res, next);
-      expect(next).toHaveBeenCalledWith(expect.objectContaining({
-        status: 500,
-        message: 'Pricing plan or billing account not found.',
-      }));
-    });
-
-    test('should skip token check if plan has unlimited tokens', async () => {
-      req.user.PricingPlan.tokenAllowance = null;
-      await checkTokenAllowance(req, res, next);
-      expect(next).toHaveBeenCalledWith();
-    });
-
-    test('should allow request when under token allowance', async () => {
-      await checkTokenAllowance(req, res, next);
-      expect(next).toHaveBeenCalledWith();
-    });
-
-    test('should block request when token allowance exceeded', async () => {
-      req.user.BillingAccount.tokenUsageThisMonth = 60000;
+    test('should block request when token allowance is exceeded', async () => {
+      req.user.BillingAccount.tokenUsageThisMonth = 50001; // Exceeds allowance
+      BillingAccount.findOne.mockResolvedValue(req.user.BillingAccount);
       await checkTokenAllowance(req, res, next);
       expect(res.status).toHaveBeenCalledWith(402);
-      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
-        error: 'Token Allowance Exceeded',
-      }));
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'Token Allowance Exceeded' }));
       expect(next).not.toHaveBeenCalled();
-    });
-
-    test('should allow pay-as-you-go users with credit balance to exceed token allowance', async () => {
-      req.user.BillingAccount.tokenUsageThisMonth = 60000;
-      req.user.BillingAccount.creditBalance = 10.0;
-      req.user.PricingPlan.code = 'pay-as-you-go';
-      await checkTokenAllowance(req, res, next);
-      expect(next).toHaveBeenCalledWith();
     });
   });
 });

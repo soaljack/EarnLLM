@@ -8,7 +8,10 @@ const {
   sequelize, LlmModel, ExternalModel, ApiUsage,
 } = require('../models');
 const { rateLimitByPlan, checkDailyQuota, checkTokenAllowance } = require('../middleware/rateLimit.middleware');
-const { authenticateApiKey, requireApiPermission } = require('../middleware/auth.middleware');
+const authMiddleware = require('../middleware/auth.middleware');
+
+// Wrapper to lazily call the permission middleware, breaking the circular dependency
+const lazyRequireApiPermission = (permission) => (req, res, next) => authMiddleware.requireApiPermission(permission)(req, res, next);
 
 const router = express.Router();
 
@@ -45,7 +48,7 @@ const calculateUsageAndCosts = (promptTokens, completionTokens, model, isExterna
  * Apply middleware stack for all LLM routes
  */
 router.use(
-  authenticateApiKey,
+  authMiddleware.authenticateApiKey,
   rateLimitByPlan,
   checkDailyQuota,
   checkTokenAllowance,
@@ -56,7 +59,7 @@ router.use(
  * @desc Process a chat completion request
  * @access Private (API key)
  */
-router.post('/chat/completions', requireApiPermission('chat:completion'), async (req, res, next) => {
+router.post('/chat/completions', lazyRequireApiPermission('chat:completion'), async (req, res, next) => {
   const requestId = uuidv4();
   const startTime = Date.now();
   let usage = null;
@@ -296,7 +299,7 @@ router.post('/chat/completions', requireApiPermission('chat:completion'), async 
  * @desc Generate embeddings for the given input
  * @access Private (API key)
  */
-router.post('/embeddings', requireApiPermission('embed'), async (req, res, next) => {
+router.post('/embeddings', lazyRequireApiPermission('embed'), async (req, res, next) => {
   const requestId = uuidv4();
   const startTime = Date.now();
 

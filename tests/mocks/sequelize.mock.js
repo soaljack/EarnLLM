@@ -207,6 +207,7 @@ const mockModels = {
     findAll: jest.fn().mockResolvedValue([]),
     update: jest.fn().mockImplementation(() => Promise.resolve([1])),
     destroy: jest.fn().mockResolvedValue(1),
+    findAndCountAll: jest.fn().mockResolvedValue({ count: 0, rows: [] }),
   },
   ApiKey: {
     generateKey: jest.fn().mockReturnValue({

@@ -3,10 +3,14 @@ const createError = require('http-errors');
 const { User, ApiKey, PricingPlan } = require('../models');
 require('dotenv').config();
 
+// Immediately export an object to break circular dependencies
+const authMiddleware = {};
+module.exports = authMiddleware;
+
 /**
  * Middleware to authenticate users via JWT token
  */
-const authenticateJWT = async (req, res, next) => {
+authMiddleware.authenticateJWT = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
@@ -51,7 +55,7 @@ const authenticateJWT = async (req, res, next) => {
 /**
  * Middleware to authenticate API requests using API key
  */
-const authenticateApiKey = async (req, res, next) => {
+authMiddleware.authenticateApiKey = async (req, res, next) => {
   try {
     const apiKeyHeader = req.headers['x-api-key'];
 
@@ -115,7 +119,7 @@ const authenticateApiKey = async (req, res, next) => {
 /**
  * Middleware to check if user has admin role
  */
-const requireAdmin = (req, res, next) => {
+authMiddleware.requireAdmin = (req, res, next) => {
   if (!req.user || !req.user.isAdmin) {
     return next(createError(403, 'Admin access required'));
   }
@@ -125,7 +129,7 @@ const requireAdmin = (req, res, next) => {
 /**
  * Middleware to check for specific API key permissions
  */
-const requireApiPermission = (permission) => (req, res, next) => {
+authMiddleware.requireApiPermission = (permission) => (req, res, next) => {
   if (!req.apiKey) {
     return next(createError(403, 'API authentication required'));
   }
@@ -135,11 +139,4 @@ const requireApiPermission = (permission) => (req, res, next) => {
   }
 
   return next();
-};
-
-module.exports = {
-  authenticateJWT,
-  authenticateApiKey,
-  requireAdmin,
-  requireApiPermission,
 };

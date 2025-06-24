@@ -1,70 +1,34 @@
-/**
- * Integration tests for API key routes with a robust mocked dependency setup
- */
-
 const request = require('supertest');
-const express = require('express');
-
-// --- Jest Mocks ---
-// We mock the modules first, before they are required by any other module.
-
-jest.mock('../../src/middleware/auth.middleware', () => ({
-  authenticateJWT: jest.fn((req, res, next) => {
-    // A simple mock that attaches a test user to the request if an auth header is present.
-    if (req.headers.authorization) {
-      req.user = { id: 1, email: 'apikey-test@example.com' };
-      return next();
-    }
-    // For tests that need to fail authentication, we can re-mock this implementation.
-    return res.status(401).json({ status: 'error', message: 'Unauthorized' });
-  }),
-  authenticateApiKey: jest.fn((req, res, next) => next()),
-  requireAdmin: jest.fn((req, res, next) => next()),
-}));
-
-jest.mock('../../src/models', () => ({
-  User: {
-    findByPk: jest.fn(),
-  },
-  ApiKey: {
-    generateKey: jest.fn(),
-    create: jest.fn(),
-    findAll: jest.fn(),
-    findOne: jest.fn(),
-    destroy: jest.fn(),
-  },
-}));
-
-// --- Modules under test ---
-// Now we can require the modules. They will get the mocked versions.
-const apiKeyRoutes = require('../../src/routes/apiKey.routes');
+const app = require('../../app');
 const { ApiKey } = require('../../src/models');
+
+// Mock the entire auth middleware module
+jest.mock('../../src/middleware/auth.middleware', () => ({
+  authenticateJWT: jest.fn((req, res, next) => next()),
+}));
+
 const authMiddleware = require('../../src/middleware/auth.middleware');
 
-// --- Test Suite ---
-
-describe('API Key Routes (Mocked)', () => {
-  let app;
-  const testUser = { id: 1, email: 'apikey-test@example.com' };
-
-  beforeAll(() => {
-    app = express();
-    app.use(express.json());
-    app.use('/api/api-keys', apiKeyRoutes);
-
-    // Global error handler for cleaner test output
-    app.use((err, req, res, _next) => {
-      const status = err.status || 500;
-      const message = err.message || 'Something went wrong';
-      res.status(status).json({ status: 'error', message });
-    });
-  });
+describe('API Key Routes', () => {
+  let testUser;
+  let testKey;
 
   beforeEach(() => {
-    // Reset mocks before each test to ensure isolation
     jest.clearAllMocks();
 
-    // Default auth mock behavior for authenticated routes
+    testUser = { id: 1, email: 'apikey-test@example.com' };
+
+    // Mock an existing API key for the user
+    testKey = {
+      id: 101,
+      name: 'My Test Key',
+      UserId: testUser.id,
+      isActive: true,
+      save: jest.fn().mockReturnThis(),
+      destroy: jest.fn().mockResolvedValue(1),
+    };
+
+    // Authenticate all requests with the test user
     authMiddleware.authenticateJWT.mockImplementation((req, res, next) => {
       req.user = testUser;
       next();
@@ -72,81 +36,78 @@ describe('API Key Routes (Mocked)', () => {
   });
 
   describe('POST /api/api-keys', () => {
-    test('should create a new API key', async () => {
-      const mockCreatedKey = { id: 101, name: 'Test API Key', UserId: 1 };
-      ApiKey.create.mockResolvedValue(mockCreatedKey);
-      ApiKey.generateKey.mockReturnValue({
-        prefix: 'earn_test_',
-        fullKey: 'earn_test_full_key_string',
-        hashedKey: 'hashed_key_string',
-      });
+    it('should create a new API key', async () => {
+      const keyName = 'My New Test Key';
+      // The create method is static on the model, so we mock it here
+      ApiKey.create.mockResolvedValue({ name: keyName, UserId: testUser.id });
 
       const response = await request(app)
         .post('/api/api-keys')
-        .send({ name: 'Test API Key' })
+        .send({ name: keyName })
         .expect(201);
 
-      expect(response.body.key).toBe('earn_test_full_key_string');
-      expect(ApiKey.create).toHaveBeenCalledWith(expect.objectContaining({
-        name: 'Test API Key',
-        UserId: testUser.id,
-      }));
+      expect(ApiKey.create).toHaveBeenCalledWith({ name: keyName, UserId: testUser.id });
+      expect(response.body).toHaveProperty('key');
+      expect(response.body.key).toMatch(/^sk-/);
+      expect(response.body.message).toBe('API key created successfully.');
+    });
+
+    it('should return 400 if name is missing', async () => {
+      await request(app).post('/api/api-keys').send({}).expect(400);
+      expect(ApiKey.create).not.toHaveBeenCalled();
     });
   });
 
   describe('GET /api/api-keys', () => {
-    test('should list user API keys', async () => {
-      const mockApiKeys = [{ id: 101, name: 'Test API Key' }];
-      ApiKey.findAll.mockResolvedValue(mockApiKeys);
+    it("should list the user's API keys", async () => {
+      ApiKey.findAll.mockResolvedValue([testKey]);
 
       const response = await request(app).get('/api/api-keys').expect(200);
 
-      expect(response.body[0].name).toBe('Test API Key');
-      expect(ApiKey.findAll).toHaveBeenCalledWith({
-        where: { UserId: testUser.id },
-        attributes: ['id', 'name', 'prefix', 'isActive', 'lastUsedAt', 'expiresAt', 'permissions', 'createdAt'],
-      });
+      expect(ApiKey.findAll).toHaveBeenCalledWith({ where: { UserId: testUser.id } });
+      expect(response.body).toBeInstanceOf(Array);
+      expect(response.body.length).toBe(1);
+      expect(response.body[0].name).toBe('My Test Key');
+      expect(response.body[0]).not.toHaveProperty('hashedKey');
     });
   });
 
   describe('POST /api/api-keys/:id/revoke', () => {
-    test('should revoke an API key', async () => {
-      const mockKeyInstance = {
-        id: 101,
-        isActive: true,
-        update: jest.fn().mockResolvedValue({ id: 101, isActive: false }),
-      };
-      ApiKey.findOne.mockResolvedValue(mockKeyInstance);
+    it('should revoke an active API key', async () => {
+      ApiKey.findOne.mockResolvedValue(testKey);
 
-      const response = await request(app).post('/api/api-keys/101/revoke').expect(200);
+      const response = await request(app)
+        .post(`/api/api-keys/${testKey.id}/revoke`)
+        .expect(200);
 
-      expect(response.body.message).toBe('API key revoked successfully');
-      expect(response.body.isActive).toBe(false);
-      expect(ApiKey.findOne).toHaveBeenCalledWith({ where: { id: '101', UserId: testUser.id } });
-      expect(mockKeyInstance.update).toHaveBeenCalledWith({ isActive: false });
+      expect(ApiKey.findOne).toHaveBeenCalledWith({ where: { id: testKey.id.toString(), UserId: testKey.UserId } });
+      expect(testKey.save).toHaveBeenCalled();
+      expect(response.body.message).toBe('API key revoked successfully.');
+      expect(response.body.apiKey.isActive).toBe(false);
     });
 
-    test('should return 404 for non-existent key', async () => {
+    it('should return 404 for a non-existent key', async () => {
       ApiKey.findOne.mockResolvedValue(null);
-      await request(app).post('/api/api-keys/999/revoke').expect(404);
+      await request(app).post('/api/api-keys/999999/revoke').expect(404);
     });
   });
 
   describe('DELETE /api/api-keys/:id', () => {
-    test('should delete an API key', async () => {
-      ApiKey.destroy.mockResolvedValue(1);
+    it('should delete an API key', async () => {
+      ApiKey.findOne.mockResolvedValue(testKey);
 
-      const response = await request(app).delete('/api/api-keys/101').expect(200);
+      const response = await request(app)
+        .delete(`/api/api-keys/${testKey.id}`)
+        .expect(200);
 
-      expect(response.body.message).toBe('API key deleted successfully');
-      expect(ApiKey.destroy).toHaveBeenCalledWith({ where: { id: '101', UserId: testUser.id } });
+      expect(ApiKey.findOne).toHaveBeenCalledWith({ where: { id: testKey.id.toString(), UserId: testUser.id } });
+      expect(testKey.destroy).toHaveBeenCalled();
+      expect(response.body.message).toBe('API key deleted successfully.');
     });
 
-    test('should return 404 when trying to delete a non-existent key', async () => {
-      ApiKey.destroy.mockResolvedValue(0);
-
-      await request(app).delete('/api/api-keys/999').expect(404);
-      expect(ApiKey.destroy).toHaveBeenCalledWith({ where: { id: '999', UserId: testUser.id } });
+    it('should return 404 when deleting a non-existent key', async () => {
+      ApiKey.findOne.mockResolvedValue(null);
+      await request(app).delete('/api/api-keys/999999').expect(404);
     });
   });
 });
