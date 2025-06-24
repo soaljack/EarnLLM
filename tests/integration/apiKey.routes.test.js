@@ -112,7 +112,10 @@ describe('API Key Routes', () => {
         where: { id: testKey.id.toString(), UserId: testUser.id },
         transaction: expect.anything(),
       });
-      expect(testKey.update).toHaveBeenCalledWith({ isActive: false }, { transaction: expect.anything() });
+      expect(testKey.update).toHaveBeenCalledWith(
+        { isActive: false },
+        { transaction: expect.anything() },
+      );
       expect(response.body.message).toBe('API key revoked successfully');
       expect(response.body.isActive).toBe(false);
     });
