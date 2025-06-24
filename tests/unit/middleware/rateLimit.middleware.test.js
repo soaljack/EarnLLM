@@ -1,9 +1,9 @@
 /**
  * Unit Tests for Rate Limiting Middleware
  */
+const redis = require('redis');
 const { rateLimitByPlan, checkDailyQuota, checkTokenAllowance } = require('../../../src/middleware/rateLimit.middleware');
 const { ApiUsage } = require('../../../src/models');
-const redis = require('redis');
 
 // Mock models
 jest.mock('../../../src/models', () => ({
