@@ -125,7 +125,8 @@ describe('Model Routes', () => {
         modelId: 'claude-3-opus',
         apiKey: 'test-key',
       };
-      ExternalModel.create.mockResolvedValue({ id: 202, ...externalModelData, UserId: testUser.id });
+      const mockCreatedModel = { id: 202, ...externalModelData, UserId: testUser.id };
+      ExternalModel.create.mockResolvedValue(mockCreatedModel);
 
       const response = await request(app).post('/api/models/external').send(externalModelData).expect(201);
 
