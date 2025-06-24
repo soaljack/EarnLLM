@@ -31,13 +31,20 @@ jobs:
       - name: Run linter
         run: npm run lint
 
-      - name: Run tests
+      - name: Run tests (with secret)
+        if: ${{ secrets.JWT_SECRET != '' }}
         run: npm test
         env:
-          # Use a mock/test environment for CI
           NODE_ENV: test
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          # The tests use a mock Stripe key, so this can be a placeholder
           STRIPE_SECRET_KEY: sk_test_mock
           STRIPE_WEBHOOK_SECRET: whsec_mock
-          # The tests use an in-memory SQLite database, so no DB credentials needed
+
+      - name: Run tests (on fork)
+        if: ${{ secrets.JWT_SECRET == '' }}
+        run: npm test
+        env:
+          NODE_ENV: test
+          JWT_SECRET: 'dummy-secret-for-forked-pr'
+          STRIPE_SECRET_KEY: sk_test_mock
+          STRIPE_WEBHOOK_SECRET: whsec_mock

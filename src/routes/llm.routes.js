@@ -7,11 +7,17 @@ const createError = require('http-errors');
 const {
   sequelize, LlmModel, ExternalModel, ApiUsage,
 } = require('../models');
-const { rateLimitByPlan, checkDailyQuota, checkTokenAllowance } = require('../middleware/rateLimit.middleware');
+const {
+  rateLimitByPlan,
+  checkDailyQuota,
+  checkTokenAllowance,
+} = require('../middleware/rateLimit.middleware');
 const authMiddleware = require('../middleware/auth.middleware');
 
 // Wrapper to lazily call the permission middleware, breaking the circular dependency
-const lazyRequireApiPermission = (permission) => (req, res, next) => authMiddleware.requireApiPermission(permission)(req, res, next);
+const lazyRequireApiPermission = (permission) => (req, res, next) => (
+  authMiddleware.requireApiPermission(permission)(req, res, next)
+);
 
 const router = express.Router();
 

@@ -1,7 +1,7 @@
 const request = require('supertest');
+const stripe = require('stripe');
 const app = require('../../app');
 const { PricingPlan } = require('../../src/models');
-const stripe = require('stripe');
 
 // Mock external dependencies
 jest.mock('stripe');
@@ -12,7 +12,8 @@ jest.mock('../../src/middleware/auth.middleware', () => ({
 const authMiddleware = require('../../src/middleware/auth.middleware');
 
 describe('Billing Routes', () => {
-  let testUser, proPlan;
+    let testUser;
+  let proPlan;
 
   beforeEach(() => {
     jest.clearAllMocks();

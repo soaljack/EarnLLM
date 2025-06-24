@@ -39,7 +39,15 @@ describe('API Key Routes', () => {
     it('should create a new API key', async () => {
       const keyName = 'My New Test Key';
       // The create method is static on the model, so we mock it here
-      ApiKey.create.mockResolvedValue({ name: keyName, UserId: testUser.id });
+      ApiKey.create.mockResolvedValue({
+        id: 'mock-api-key-id',
+        key: 'mock-key-string',
+        name: 'Test Key',
+        UserId: testUser.id,
+        lastUsed: null,
+        expiresAt: null,
+        toJSON: () => ({ name: 'Test Key', key: '...key-string' }),
+      });
 
       const response = await request(app)
         .post('/api/api-keys')
@@ -80,7 +88,9 @@ describe('API Key Routes', () => {
         .post(`/api/api-keys/${testKey.id}/revoke`)
         .expect(200);
 
-      expect(ApiKey.findOne).toHaveBeenCalledWith({ where: { id: testKey.id.toString(), UserId: testKey.UserId } });
+      expect(ApiKey.findOne).toHaveBeenCalledWith({
+        where: { id: testKey.id.toString(), UserId: testKey.UserId },
+      });
       expect(testKey.save).toHaveBeenCalled();
       expect(response.body.message).toBe('API key revoked successfully.');
       expect(response.body.apiKey.isActive).toBe(false);
@@ -100,7 +110,9 @@ describe('API Key Routes', () => {
         .delete(`/api/api-keys/${testKey.id}`)
         .expect(200);
 
-      expect(ApiKey.findOne).toHaveBeenCalledWith({ where: { id: testKey.id.toString(), UserId: testUser.id } });
+      expect(ApiKey.findOne).toHaveBeenCalledWith({
+        where: { id: testKey.id.toString(), UserId: testUser.id },
+      });
       expect(testKey.destroy).toHaveBeenCalled();
       expect(response.body.message).toBe('API key deleted successfully.');
     });

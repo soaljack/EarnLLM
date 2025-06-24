@@ -27,7 +27,12 @@ describe('Authentication Routes', () => {
         id: 1,
         ...registerUserPayload,
         password: 'hashedpassword123',
-        toJSON: () => ({ id: 1, email: registerUserPayload.email, firstName: registerUserPayload.firstName, lastName: registerUserPayload.lastName }),
+        toJSON: () => ({
+          id: 1,
+          email: registerUserPayload.email,
+          firstName: registerUserPayload.firstName,
+          lastName: registerUserPayload.lastName,
+        })
       };
       const mockStarterPlan = { id: 1, code: 'starter' };
 
@@ -45,7 +50,15 @@ describe('Authentication Routes', () => {
       expect(User.findOne).toHaveBeenCalledWith({ where: { email: registerUserPayload.email } });
       expect(PricingPlan.findOne).toHaveBeenCalledWith({ where: { code: 'starter' } });
       expect(User.create).toHaveBeenCalled();
-      expect(BillingAccount.create).toHaveBeenCalledWith({ UserId: mockNewUser.id, PricingPlanId: mockStarterPlan.id }, expect.any(Object));
+
+      expect(BillingAccount.create).toHaveBeenCalledWith(
+        {
+          UserId: mockNewUser.id,
+          PricingPlanId: mockStarterPlan.id,
+        },
+        expect.any(Object)
+      );
+
       expect(response.body.user.email).toBe(registerUserPayload.email);
       expect(response.body).toHaveProperty('token', 'mock-jwt-token');
     });
