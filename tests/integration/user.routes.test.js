@@ -15,8 +15,11 @@ describe('User Routes', () => {
   beforeEach(() => {
     jest.resetModules();
 
+    // eslint-disable-next-line global-require
     app = require('../../app');
+    // eslint-disable-next-line global-require
     authMiddleware = require('../../src/middleware/auth.middleware');
+    // eslint-disable-next-line global-require
     const models = require('../../src/models');
     User = models.User;
     ApiUsage = models.ApiUsage;
@@ -32,7 +35,7 @@ describe('User Routes', () => {
       isActive: true,
       isAdmin: false,
       validatePassword: jest.fn(),
-      save: jest.fn(function () {
+      save: jest.fn(function save() {
         return Promise.resolve(this);
       }),
     };

@@ -90,8 +90,6 @@ jest.mock('../src/models', () => sequelizeMock);
 jest.doMock('../src/utils/auth', () => authHelpersMock, { virtual: true });
 jest.doMock('bcryptjs', () => authHelpersMock.bcrypt, { virtual: true });
 
-
-
 // Reset mocks between tests
 beforeEach(() => {
   jest.clearAllMocks();

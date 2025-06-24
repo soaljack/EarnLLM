@@ -13,7 +13,7 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
-const requireApiPermission = (permission) => (req, res, next) => {
+const requireApiPermission = (_permission) => (req, res, next) => {
   next();
 };
 

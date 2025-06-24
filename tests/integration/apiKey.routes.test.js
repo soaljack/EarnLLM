@@ -17,8 +17,11 @@ describe('API Key Routes', () => {
     jest.resetModules();
 
     // Re-require the app and middleware inside beforeEach to get the fresh, mocked instances.
+    // eslint-disable-next-line global-require
     app = require('../../app');
+    // eslint-disable-next-line global-require
     authMiddleware = require('../../src/middleware/auth.middleware');
+    // eslint-disable-next-line global-require
     ApiKey = require('../../src/models').ApiKey;
 
     // --- Mock Data Setup ---
@@ -29,7 +32,7 @@ describe('API Key Routes', () => {
       UserId: testUser.id,
       isActive: true,
       save: jest.fn().mockReturnThis(),
-      update: jest.fn(async function (data) {
+      update: jest.fn(async function update(data) {
         Object.assign(this, data);
         return this;
       }),
@@ -67,7 +70,9 @@ describe('API Key Routes', () => {
         .send({ name: keyName })
         .expect(201);
 
-      expect(ApiKey.create).toHaveBeenCalledWith(expect.objectContaining({ name: keyName, UserId: testUser.id }));
+      expect(ApiKey.create).toHaveBeenCalledWith(
+        expect.objectContaining({ name: keyName, UserId: testUser.id }),
+      );
       expect(response.body).toHaveProperty('key');
       expect(response.body.key).toMatch(/^sk-/);
       expect(response.body.name).toBe(keyName);
