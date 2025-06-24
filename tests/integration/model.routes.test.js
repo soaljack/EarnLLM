@@ -1,25 +1,29 @@
 const request = require('supertest');
-const app = require('../../app');
-const { LlmModel, ExternalModel } = require('../../src/models');
-
-// Mock the entire auth middleware module
-jest.mock('../../src/middleware/auth.middleware', () => ({
-  authenticateJWT: jest.fn(),
-  authenticateApiKey: jest.fn(),
-  requireAdmin: jest.fn(),
-  requireApiPermission: jest.fn().mockReturnValue((req, res, next) => next()),
-}));
-
-const authMiddleware = require('../../src/middleware/auth.middleware');
+// Hoist mocks to the top
+jest.mock('../../src/middleware/auth.middleware');
+jest.mock('../../src/models');
 
 describe('Model Routes', () => {
+  let app;
+  let authMiddleware;
+  let LlmModel;
+  let ExternalModel;
   let testUser;
   let adminUser;
   let systemModel;
   let externalModel;
 
   beforeEach(() => {
-    // Reset all mocks before each test to ensure isolation
+    jest.resetModules();
+    // eslint-disable-next-line global-require
+    app = require('../../app');
+    // eslint-disable-next-line global-require
+    authMiddleware = require('../../src/middleware/auth.middleware');
+    // eslint-disable-next-line global-require
+    const models = require('../../src/models');
+    LlmModel = models.LlmModel;
+    ExternalModel = models.ExternalModel;
+
     jest.clearAllMocks();
 
     // Setup mock data
