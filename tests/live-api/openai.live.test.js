@@ -1,4 +1,3 @@
-const request = require('supertest');
 
 // The full API key is seeded by jest.setup.live.js and available globally.
 

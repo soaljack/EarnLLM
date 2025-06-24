@@ -1,7 +1,12 @@
 const express = require('express');
 const createError = require('http-errors');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-const { BillingAccount, PricingPlan, User, sequelize } = require('../models');
+const {
+  BillingAccount,
+  PricingPlan,
+  User,
+  sequelize,
+} = require('../models');
 const { authenticateApiKey } = require('../middleware/auth.middleware');
 
 const router = express.Router();

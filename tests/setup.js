@@ -86,7 +86,8 @@ jest.mock('openai', () => ({
 // Mock database models
 jest.mock('../src/models', () => sequelizeMock);
 
-// Mock authentication helpers - using jest.doMock for modules that might not exist
+// Mock authentication middleware and helpers
+jest.doMock('../src/middleware/auth.middleware', () => authMiddlewareMock, { virtual: true });
 jest.doMock('../src/utils/auth', () => authHelpersMock, { virtual: true });
 jest.doMock('bcryptjs', () => authHelpersMock.bcrypt, { virtual: true });
 

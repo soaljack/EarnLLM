@@ -30,12 +30,10 @@ async function seedPricingPlans() {
   try {
     await sequelize.sync();
 
-    const planPromises = plans.map((planData) =>
-      PricingPlan.findOrCreate({
-        where: { code: planData.code },
-        defaults: planData,
-      })
-    );
+    const planPromises = plans.map((planData) => PricingPlan.findOrCreate({
+      where: { code: planData.code },
+      defaults: planData,
+    }));
 
     const settledPlans = await Promise.all(planPromises);
 

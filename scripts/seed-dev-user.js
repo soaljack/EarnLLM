@@ -1,4 +1,10 @@
-const { sequelize, User, ApiKey, PricingPlan, BillingAccount } = require('../src/models');
+const {
+  sequelize,
+  User,
+  ApiKey,
+  PricingPlan,
+  BillingAccount,
+} = require('../src/models');
 require('dotenv').config();
 
 /**

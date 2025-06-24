@@ -8,7 +8,8 @@ module.exports = (sequelize) => {
      * This is the single source of truth for key creation.
      * @param {string} UserId - The UUID of the user who owns the key.
      * @param {string} name - A descriptive name for the key.
-     * @returns {{ fullKey: string, newApiKey: ApiKey }} The full, unhashed key and the new ApiKey instance.
+     * @returns {{ fullKey: string, newApiKey: ApiKey }} The full, unhashed key and
+     * the new ApiKey instance.
      */
     static async generateKey(UserId, name) {
       const prefix = crypto.randomBytes(4).toString('hex');
