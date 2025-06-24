@@ -1,11 +1,19 @@
-const request = require('supertest');
-const {
-  sequelize, User, ApiKey, PricingPlan, BillingAccount, LlmModel,
-} = require('../src/models');
-const app = require('../app');
 const http = require('http');
+const request = require('supertest');
 const enableDestroy = require('server-destroy');
-const { connectRateLimiter, closeRateLimiter } = require('../src/middleware/rateLimit.middleware');
+const app = require('../app');
+const {
+  sequelize,
+  User,
+  ApiKey,
+  PricingPlan,
+  BillingAccount,
+  LlmModel,
+} = require('../src/models');
+const {
+  connectRateLimiter,
+  closeRateLimiter,
+} = require('../src/middleware/rateLimit.middleware');
 
 let server;
 

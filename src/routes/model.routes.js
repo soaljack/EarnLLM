@@ -45,7 +45,7 @@ router.get('/', authenticateApiKey, async (req, res, next) => {
       externalModels,
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 });
 
@@ -84,14 +84,13 @@ router.get('/:id', authenticateApiKey, async (req, res, next) => {
       });
 
       if (!model) {
-        next(createError(404, 'Model not found'));
-        return;
+        return next(createError(404, 'Model not found'));
       }
     }
 
     res.json(model);
   } catch (error) {
-    next(error);
+    return next(error);
   }
 });
 
@@ -142,7 +141,7 @@ router.post('/', authenticateJWT, requireAdmin, async (req, res, next) => {
 
     res.status(201).json(model);
   } catch (error) {
-    next(error);
+    return next(error);
   }
 });
 
@@ -194,7 +193,7 @@ router.put('/:id', authenticateJWT, requireAdmin, async (req, res, next) => {
 
     res.json(model);
   } catch (error) {
-    next(error);
+    return next(error);
   }
 });
 
@@ -218,7 +217,7 @@ router.delete('/:id', authenticateJWT, requireAdmin, async (req, res, next) => {
 
     res.json({ message: 'Model deleted successfully' });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 });
 
@@ -297,7 +296,7 @@ router.post('/external', authenticateJWT, async (req, res, next) => {
 
     res.status(201).json(modelResponse);
   } catch (error) {
-    next(error);
+    return next(error);
   }
 });
 
@@ -382,7 +381,7 @@ router.put('/external/:id', authenticateJWT, async (req, res, next) => {
 
     res.json(modelResponse);
   } catch (error) {
-    next(error);
+    return next(error);
   }
 });
 
@@ -409,7 +408,7 @@ router.delete('/external/:id', authenticateJWT, async (req, res, next) => {
 
     res.json({ message: 'External model deleted successfully' });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 });
 
@@ -475,7 +474,7 @@ router.post('/external/:id/test', authenticateJWT, async (req, res, next) => {
       });
     }
   } catch (error) {
-    next(error);
+    return next(error);
   }
 });
 

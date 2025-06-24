@@ -287,7 +287,10 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         if (paymentIntent.metadata.type === 'credits') {
           const { userId } = paymentIntent.metadata;
           const amountCents = paymentIntent.amount;
-          const billingAccount = await BillingAccount.findOne({ where: { UserId: userId }, transaction: t });
+          const billingAccount = await BillingAccount.findOne({
+            where: { UserId: userId },
+            transaction: t,
+          });
           if (billingAccount) {
             await billingAccount.increment('creditBalance', { by: amountCents, transaction: t });
           }
@@ -298,7 +301,10 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       case 'subscription_schedule.canceled':
       case 'customer.subscription.deleted': {
         const subscription = event.data.object;
-        const billingAccount = await BillingAccount.findOne({ where: { stripeSubscriptionId: subscription.id }, transaction: t });
+        const billingAccount = await BillingAccount.findOne({
+          where: { stripeSubscriptionId: subscription.id },
+          transaction: t,
+        });
         if (billingAccount) {
           billingAccount.subscriptionStatus = 'canceled';
           await billingAccount.save({ transaction: t });

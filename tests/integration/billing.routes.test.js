@@ -84,7 +84,7 @@ describe('Billing Routes', () => {
           { model: PricingPlan, as: 'PricingPlan' },
           { model: BillingAccount, as: 'BillingAccount' },
         ],
-      }).then(userWithAssocs => {
+      }).then((userWithAssocs) => {
         req.user = userWithAssocs;
         next();
       }).catch(next);

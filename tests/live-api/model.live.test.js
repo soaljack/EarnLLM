@@ -1,8 +1,6 @@
 // These tests use the global 'testRequest' object initialized in jest.setup.live.js
 
 describe('Model Live API Routes', () => {
-  
-
   describe('GET /api/models', () => {
     test('should return a list of system and external models', async () => {
       const response = await global.testRequest
