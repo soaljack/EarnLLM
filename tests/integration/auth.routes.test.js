@@ -98,6 +98,10 @@ describe('Authentication Routes', () => {
       User.findOne.mockResolvedValue(null);
       PricingPlan.findOne.mockResolvedValue({ id: 1, code: 'starter' });
 
+      // Act & Assert: Send a payload without a password and expect a 400 error.
+      const { password, ...invalidPayload } = registerPayload;
+      await request(app).post('/api/auth/register').send(invalidPayload).expect(400);
+
       const incompletePayload = { ...registerPayload };
       delete incompletePayload.password;
 
