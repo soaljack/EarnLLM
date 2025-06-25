@@ -10,11 +10,31 @@ const envVarsSchema = Joi.object(
   {
     NODE_ENV: Joi.string().valid('production', 'development', 'test').required(),
     PORT: Joi.number().default(3000),
-    DB_HOST: Joi.string().required().description('Database host'),
-    DB_PORT: Joi.number().required().description('Database port'),
-    DB_USER: Joi.string().required().description('Database user'),
-    DB_PASSWORD: Joi.string().required().description('Database password'),
-    DB_NAME: Joi.string().required().description('Database name'),
+    DB_HOST: Joi.string().when('NODE_ENV', {
+      is: 'test',
+      then: Joi.optional(),
+      otherwise: Joi.required(),
+    }).description('Database host'),
+    DB_PORT: Joi.number().when('NODE_ENV', {
+      is: 'test',
+      then: Joi.optional(),
+      otherwise: Joi.required(),
+    }).description('Database port'),
+    DB_USER: Joi.string().when('NODE_ENV', {
+      is: 'test',
+      then: Joi.optional(),
+      otherwise: Joi.required(),
+    }).description('Database user'),
+    DB_PASSWORD: Joi.string().when('NODE_ENV', {
+      is: 'test',
+      then: Joi.optional(),
+      otherwise: Joi.required(),
+    }).description('Database password'),
+    DB_NAME: Joi.string().when('NODE_ENV', {
+      is: 'test',
+      then: Joi.optional(),
+      otherwise: Joi.required(),
+    }).description('Database name'),
     JWT_SECRET: Joi.string().required().description('JWT secret key'),
     JWT_ACCESS_EXPIRATION_MINUTES: Joi.number()
       .default(30)

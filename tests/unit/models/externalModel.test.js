@@ -21,7 +21,7 @@ describe('ExternalModel Model', () => {
     });
 
     // Mock static method
-    ExternalModel.create.mockImplementation(async (modelData) => {
+    jest.spyOn(ExternalModel, 'create').mockImplementation(async (modelData) => {
       // Simulate validation for required fields
       if (
         !modelData.UserId
