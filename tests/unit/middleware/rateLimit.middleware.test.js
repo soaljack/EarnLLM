@@ -16,7 +16,6 @@ jest.mock('http-errors', () => jest.fn((code, message) => {
   return err;
 }));
 
-const { Op } = require('sequelize');
 const createError = require('http-errors');
 const {
   rateLimitByPlan,

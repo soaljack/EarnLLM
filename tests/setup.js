@@ -1,22 +1,30 @@
-
-
 /**
  * Global test setup for EarnLLM API tests
  */
-
-// Set environment to test
-process.env.NODE_ENV = 'test';
-
-// Import mocks
-const _authMiddlewareMock = require('./mocks/auth.middleware.mock');
+const redisMock = require('redis-mock');
+const { mockAuthenticateJWT, mockAuthenticateApiKey } = require('./mocks/auth.middleware.mock');
 const authHelpersMock = require('./mocks/authHelpers.mock');
 const { sequelize } = require('../src/models');
 const { connectRateLimiter, closeRateLimiter } = require('../src/middleware/rateLimit.middleware');
-const redisMock = require('redis-mock');
+
+// Mock the logger to suppress info/warn messages during tests
+jest.mock('../src/config/logger', () => ({
+  info: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn(), // Keep error logging to see issues
+  debug: jest.fn(),
+}));
+
+jest.mock('../src/middleware/auth.middleware', () => ({
+  authenticateJWT: mockAuthenticateJWT,
+  authenticateApiKey: mockAuthenticateApiKey,
+}));
+
+// Centralized mock for the rate limiter's Redis client
+const mockRedisClient = redisMock.createClient();
 
 // Initialize rate limiter with mock client before any tests run
 beforeAll(async () => {
-  const mockRedisClient = redisMock.createClient();
   // Add properties needed by the application code to the mock client
   mockRedisClient.isReady = true;
   mockRedisClient.quit = jest.fn().mockResolvedValue('OK');
@@ -24,7 +32,6 @@ beforeAll(async () => {
   mockRedisClient.on = jest.fn();
   await connectRateLimiter(mockRedisClient);
 });
-
 
 jest.mock('stripe', () => jest.fn().mockImplementation(() => ({
   customers: {

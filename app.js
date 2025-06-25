@@ -2,12 +2,13 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const redis = require('redis');
 const { sequelize } = require('./src/models');
 const config = require('./src/config');
 const logger = require('./src/config/logger');
 const routes = require('./src/routes');
 const { connectRateLimiter } = require('./src/middleware/rateLimit.middleware');
-const redis = require('redis');
+const ApiError = require('./src/utils/ApiError');
 
 // Initialize express app
 const app = express();

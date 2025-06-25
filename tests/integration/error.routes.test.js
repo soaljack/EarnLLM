@@ -1,6 +1,4 @@
 // Mock dependencies first
-
-
 jest.mock('../../src/middleware/rateLimit.middleware', () => ({
   createPublicRateLimiter: () => (req, res, next) => next(),
   rateLimitByPlan: (req, res, next) => next(),
