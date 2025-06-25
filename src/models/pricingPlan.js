@@ -1,7 +1,20 @@
-const { DataTypes } = require('sequelize');
+'use strict';
 
-module.exports = (sequelize) => {
-  const PricingPlan = sequelize.define('PricingPlan', {
+module.exports = (sequelize, Sequelize) => {
+  const { Model, DataTypes } = Sequelize;
+
+  class PricingPlan extends Model {
+    /**
+     * Helper method for defining associations.
+     * This method is not a part of Sequelize lifecycle.
+     * The `models/index` file will call this method automatically.
+     */
+    static associate(models) {
+      // define association here
+    }
+  }
+
+  PricingPlan.init({
     id: {
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
@@ -67,6 +80,8 @@ module.exports = (sequelize) => {
       allowNull: true,
     },
   }, {
+    sequelize,
+    modelName: 'PricingPlan',
     timestamps: true,
   });
 

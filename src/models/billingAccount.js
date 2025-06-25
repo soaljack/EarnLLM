@@ -1,7 +1,21 @@
-const { DataTypes } = require('sequelize');
+'use strict';
 
-module.exports = (sequelize) => {
-  const BillingAccount = sequelize.define('BillingAccount', {
+module.exports = (sequelize, Sequelize) => {
+  const { Model, DataTypes } = Sequelize;
+
+  class BillingAccount extends Model {
+    /**
+     * Helper method for defining associations.
+     * This method is not a part of Sequelize lifecycle.
+     * The `models/index` file will call this method automatically.
+     */
+    static associate(models) {
+      BillingAccount.belongsTo(models.User, { foreignKey: 'userId' });
+      BillingAccount.belongsTo(models.PricingPlan, { foreignKey: 'pricingPlanId' });
+    }
+  }
+
+  BillingAccount.init({
     id: {
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
@@ -61,6 +75,8 @@ module.exports = (sequelize) => {
       defaultValue: false,
     },
   }, {
+    sequelize,
+    modelName: 'BillingAccount',
     timestamps: true,
   });
 

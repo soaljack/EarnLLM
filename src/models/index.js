@@ -21,13 +21,13 @@ const sequelize = new Sequelize(
 );
 
 // Import models
-const User = require('./user')(sequelize);
-const ApiKey = require('./apiKey')(sequelize);
-const LlmModel = require('./llmModel')(sequelize);
-const PricingPlan = require('./pricingPlan')(sequelize);
-const BillingAccount = require('./billingAccount')(sequelize);
-const ApiUsage = require('./apiUsage')(sequelize);
-const ExternalModel = require('./externalModel')(sequelize);
+const User = require('./user')(sequelize, Sequelize);
+const ApiKey = require('./apiKey')(sequelize, Sequelize);
+const LlmModel = require('./llmModel')(sequelize, Sequelize);
+const PricingPlan = require('./pricingPlan')(sequelize, Sequelize);
+const BillingAccount = require('./billingAccount')(sequelize, Sequelize);
+const ApiUsage = require('./apiUsage')(sequelize, Sequelize);
+const ExternalModel = require('./externalModel')(sequelize, Sequelize);
 
 // Define associations
 User.hasMany(ApiKey);

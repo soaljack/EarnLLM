@@ -1,7 +1,20 @@
-const { DataTypes } = require('sequelize');
+'use strict';
 
-module.exports = (sequelize) => {
-  const LlmModel = sequelize.define('LlmModel', {
+module.exports = (sequelize, Sequelize) => {
+  const { Model, DataTypes } = Sequelize;
+
+  class LlmModel extends Model {
+    /**
+     * Helper method for defining associations.
+     * This method is not a part of Sequelize lifecycle.
+     * The `models/index` file will call this method automatically.
+     */
+    static associate(models) {
+      // define association here if any
+    }
+  }
+
+  LlmModel.init({
     id: {
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
@@ -55,6 +68,8 @@ module.exports = (sequelize) => {
       defaultValue: 20,
     },
   }, {
+    sequelize,
+    modelName: 'LlmModel',
     timestamps: true,
   });
 

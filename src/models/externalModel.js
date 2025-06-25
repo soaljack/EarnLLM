@@ -1,7 +1,30 @@
-const { DataTypes } = require('sequelize');
+'use strict';
 
-module.exports = (sequelize) => {
-  const ExternalModel = sequelize.define('ExternalModel', {
+module.exports = (sequelize, Sequelize) => {
+  const { Model, DataTypes } = Sequelize;
+
+  class ExternalModel extends Model {
+    /**
+     * Helper method for defining associations.
+     * This method is not a part of Sequelize lifecycle.
+     * The `models/index` file will call this method automatically.
+     */
+    static associate(models) {
+      // define association here if any
+    }
+
+    /**
+     * Instance method to get the decrypted API key.
+     * In a real application, this would decrypt the key.
+     */
+    getDecryptedApiKey() {
+      // In production, you would decrypt the API key here
+      // This is a placeholder for actual decryption logic
+      return this.apiKey;
+    }
+  }
+
+  ExternalModel.init({
     id: {
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
@@ -82,6 +105,8 @@ module.exports = (sequelize) => {
       allowNull: true,
     },
   }, {
+    sequelize,
+    modelName: 'ExternalModel',
     timestamps: true,
     hooks: {
       beforeSave: (externalModel) => {
@@ -93,13 +118,6 @@ module.exports = (sequelize) => {
       },
     },
   });
-
-  // Instance method to get the decrypted API key
-  ExternalModel.prototype.getDecryptedApiKey = function getDecryptedApiKey() {
-    // In production, you would decrypt the API key here
-    // This is a placeholder for actual decryption logic
-    return this.apiKey;
-  };
 
   return ExternalModel;
 };

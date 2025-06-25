@@ -1,7 +1,7 @@
-const { Model, DataTypes } = require('sequelize');
 const bcrypt = require('bcryptjs');
 
-module.exports = (sequelize) => {
+module.exports = (sequelize, Sequelize) => {
+  const { Model, DataTypes } = Sequelize;
   class User extends Model {
     /**
      * Instance method to validate a password against the user's stored hash.

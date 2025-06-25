@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 /**
  * Global test setup for EarnLLM API tests
  */

@@ -1,7 +1,21 @@
-const { DataTypes } = require('sequelize');
+'use strict';
 
-module.exports = (sequelize) => {
-  const ApiUsage = sequelize.define('ApiUsage', {
+module.exports = (sequelize, Sequelize) => {
+  const { Model, DataTypes } = Sequelize;
+
+  class ApiUsage extends Model {
+    /**
+     * Helper method for defining associations.
+     * This method is not a part of Sequelize lifecycle.
+     * The `models/index` file will call this method automatically.
+     */
+    static associate(models) {
+      ApiUsage.belongsTo(models.ApiKey, { foreignKey: 'apiKeyId' });
+      ApiUsage.belongsTo(models.LlmModel, { foreignKey: 'llmModelId' });
+    }
+  }
+
+  ApiUsage.init({
     id: {
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
@@ -69,6 +83,8 @@ module.exports = (sequelize) => {
       allowNull: true,
     },
   }, {
+    sequelize,
+    modelName: 'ApiUsage',
     timestamps: true,
     indexes: [
       {
