@@ -1,8 +1,6 @@
-'use strict';
+const { Model, DataTypes } = require('sequelize');
 
-module.exports = (sequelize, Sequelize) => {
-  const { Model, DataTypes } = Sequelize;
-
+module.exports = (sequelize) => {
   class ApiUsage extends Model {
     /**
      * Helper method for defining associations.

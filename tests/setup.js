@@ -1,3 +1,5 @@
+jest.mock('sequelize', () => jest.requireActual('sequelize'));
+
 require('dotenv').config();
 
 /**

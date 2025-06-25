@@ -1,15 +1,13 @@
-'use strict';
+const { Model, DataTypes } = require('sequelize');
 
-module.exports = (sequelize, Sequelize) => {
-  const { Model, DataTypes } = Sequelize;
-
+module.exports = (sequelize) => {
   class ExternalModel extends Model {
     /**
      * Helper method for defining associations.
      * This method is not a part of Sequelize lifecycle.
      * The `models/index` file will call this method automatically.
      */
-    static associate(models) {
+    static associate(_models) {
       // define association here if any
     }
 

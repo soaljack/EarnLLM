@@ -1,7 +1,8 @@
 const crypto = require('crypto');
 
-module.exports = (sequelize, Sequelize) => {
-  const { Model, DataTypes } = Sequelize;
+const { Model, DataTypes } = require('sequelize');
+
+module.exports = (sequelize) => {
   class ApiKey extends Model {
     /**
      * Static method to generate a new API key.

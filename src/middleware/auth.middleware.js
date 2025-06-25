@@ -57,11 +57,18 @@ authMiddleware.authenticateJWT = async (req, res, next) => {
  */
 authMiddleware.authenticateApiKey = async (req, res, next) => {
   try {
-    const apiKeyHeader = req.headers['x-api-key'];
+    const authHeader = req.headers.authorization;
 
-    if (!apiKeyHeader) {
-      return next(createError(401, 'API key is missing'));
+    if (!authHeader) {
+      return next(createError(401, 'Authorization header is missing'));
     }
+
+    const tokenParts = authHeader.split(' ');
+    if (tokenParts.length !== 2 || tokenParts[0] !== 'Bearer') {
+      return next(createError(401, 'Invalid authorization format. Format is "Bearer <token>"'));
+    }
+
+    const apiKeyHeader = tokenParts[1];
 
     if (!apiKeyHeader.startsWith('sk-')) {
       return next(createError(401, 'Invalid API key format'));
