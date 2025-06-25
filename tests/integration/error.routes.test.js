@@ -1,4 +1,10 @@
 // Mock dependencies first
+jest.mock('../../src/middleware/auth.middleware', () => ({
+  authenticateJWT: (req, res, next) => next(),
+  requireAdmin: (req, res, next) => next(),
+  authenticateApiKey: (req, res, next) => next(),
+}));
+
 jest.mock('../../src/middleware/rateLimit.middleware', () => ({
   createPublicRateLimiter: () => (req, res, next) => next(),
   rateLimitByPlan: (req, res, next) => next(),

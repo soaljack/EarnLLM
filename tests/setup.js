@@ -31,6 +31,7 @@ beforeAll(async () => {
   mockRedisClient.connect = jest.fn().mockResolvedValue();
   mockRedisClient.on = jest.fn();
   mockRedisClient.zRemRangeByScore = jest.fn().mockResolvedValue(0);
+  mockRedisClient.zAdd = jest.fn().mockResolvedValue(1);
   await connectRateLimiter(mockRedisClient);
 });
 

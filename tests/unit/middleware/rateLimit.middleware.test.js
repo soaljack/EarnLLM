@@ -6,15 +6,15 @@
 process.env.REDIS_URL = 'redis://localhost:6379';
 
 // Mock dependencies BEFORE requiring the middleware
-const redis = require('redis');
-
-jest.mock('redis');
 jest.mock('../../../src/models');
-jest.mock('http-errors', () => jest.fn((code, message) => {
-  const err = new Error(message);
-  err.status = code;
-  return err;
-}));
+jest.mock('http-errors', () => {
+  const createError = jest.fn((code, message) => {
+    const err = new Error(message);
+    err.status = code;
+    return err;
+  });
+  return createError;
+});
 
 const createError = require('http-errors');
 const {
@@ -30,32 +30,31 @@ describe('Rate Limiting Middleware', () => {
   let req;
   let res;
   let next;
-  let mockRedisClient;
+  const mockRedisClient = {
+    zCard: jest.fn(),
+    zAdd: jest.fn(),
+    zRemRangeByScore: jest.fn(),
+    quit: jest.fn().mockResolvedValue('OK'),
+    on: jest.fn(),
+    isReady: true,
+    connect: jest.fn().mockResolvedValue(),
+    incr: jest.fn(),
+    expire: jest.fn(),
+    get: jest.fn(),
+  };
 
   // Use beforeAll/afterAll to connect/disconnect the mocked client once
   beforeAll(async () => {
-    await connectRateLimiter();
+    await connectRateLimiter(mockRedisClient);
   });
 
   afterAll(async () => {
-    await closeRateLimiter();
+    await closeRateLimiter(mockRedisClient);
   });
 
   beforeEach(() => {
-    // Define mock client behavior for each test
-    mockRedisClient = {
-      incr: jest.fn(),
-      expire: jest.fn(),
-      get: jest.fn(),
-      connect: jest.fn().mockResolvedValue(),
-      quit: jest.fn().mockResolvedValue(),
-    };
-
     // Clear all mocks before each test to ensure isolation
     jest.clearAllMocks();
-
-    // Re-mock createClient before each test to reset call history
-    redis.createClient.mockClear().mockReturnValue(mockRedisClient);
 
     req = {
       user: {
