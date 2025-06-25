@@ -6,7 +6,21 @@
 process.env.REDIS_URL = 'redis://localhost:6379';
 
 // Mock dependencies BEFORE requiring the middleware
-jest.mock('../../../src/models');
+jest.mock('sequelize', () => {
+  // We need to mock the Op object from sequelize
+  const actualSequelize = jest.requireActual('sequelize');
+  return {
+    Op: actualSequelize.Op,
+  };
+});
+jest.mock('../../../src/models', () => ({
+  ApiUsage: {
+    count: jest.fn(),
+  },
+  BillingAccount: {
+    findOne: jest.fn(),
+  },
+}));
 jest.mock('http-errors', () => {
   const createError = jest.fn((code, message) => {
     const err = new Error(message);
