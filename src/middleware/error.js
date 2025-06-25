@@ -9,7 +9,7 @@ const errorConverter = (err, req, res, next) => {
     let statusCode = 500;
     let message = 'Internal Server Error';
 
-    if (error instanceof ValidationError) {
+    if (error.name === 'SequelizeValidationError') {
       statusCode = 400;
       message = error.errors.map((e) => e.message).join(', ');
     } else if (error.statusCode) {

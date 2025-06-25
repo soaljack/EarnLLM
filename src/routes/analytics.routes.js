@@ -284,34 +284,37 @@ router.get('/admin/users-growth', authenticateJWT, requireAdmin, async (req, res
  */
 router.get('/admin/revenue', authenticateJWT, requireAdmin, async (req, res, next) => {
   try {
-    // Calculate revenue by day for the past 90 days
+    const { startDate, endDate } = req.query;
     const now = new Date();
-    const ninetyDaysAgo = new Date(now);
-    ninetyDaysAgo.setDate(now.getDate() - 90);
 
-    const oneDayAgo = new Date(now);
-    oneDayAgo.setDate(now.getDate() - 1);
+    // Define date range for queries, defaulting to the last 90 days
+    const ninetyDaysAgo = new Date(new Date().setDate(now.getDate() - 90));
+    const dateWhere = {
+      createdAt: {
+        [Op.gte]: startDate ? new Date(startDate) : ninetyDaysAgo,
+      },
+    };
+    if (endDate) {
+      dateWhere.createdAt[Op.lte] = new Date(endDate);
+    }
 
-    const oneWeekAgo = new Date(now);
-    oneWeekAgo.setDate(now.getDate() - 7);
+    // Define fixed timeframes for summary stats
+    const oneDayAgo = new Date(new Date().setDate(now.getDate() - 1));
+    const oneWeekAgo = new Date(new Date().setDate(now.getDate() - 7));
+    const oneMonthAgo = new Date(new Date().setMonth(now.getMonth() - 1));
 
-    const oneMonthAgo = new Date(now);
-    oneMonthAgo.setMonth(now.getMonth() - 1);
-
-    // Revenue from API usage
+    // Revenue from API usage, respecting date filters
     const apiRevenueByDay = await ApiUsage.findAll({
       attributes: [
         [Sequelize.fn('DATE', Sequelize.col('createdAt')), 'date'],
         [Sequelize.fn('SUM', Sequelize.col('totalCostCents')), 'totalCostCents'],
       ],
-      where: {
-        createdAt: { [Op.gte]: ninetyDaysAgo },
-      },
+      where: dateWhere,
       group: [Sequelize.fn('DATE', Sequelize.col('createdAt'))],
       order: [[Sequelize.fn('DATE', Sequelize.col('createdAt')), 'ASC']],
     });
 
-    // Revenue by model
+    // Revenue by model, respecting date filters
     const revenueByModel = await ApiUsage.findAll({
       attributes: [
         [Sequelize.fn('COALESCE', Sequelize.col('LlmModel.name'), Sequelize.col('ExternalModel.name')), 'modelName'],
@@ -330,9 +333,7 @@ router.get('/admin/revenue', authenticateJWT, requireAdmin, async (req, res, nex
           required: false,
         },
       ],
-      where: {
-        createdAt: { [Op.gte]: ninetyDaysAgo },
-      },
+      where: dateWhere,
       group: [
         [Sequelize.fn('COALESCE', Sequelize.col('LlmModel.name'), Sequelize.col('ExternalModel.name')), 'modelName'],
       ],

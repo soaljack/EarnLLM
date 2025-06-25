@@ -1,115 +1,113 @@
-const request = require('supertest');
+// Mock dependencies to be fully self-contained BEFORE app import.
+jest.mock('../../src/middleware/auth.middleware', () => ({
+  authenticateJWT: jest.fn(),
+  requireAdmin: jest.fn(),
+  authenticateApiKey: jest.fn(),
+  requireApiPermission: jest.fn(),
+}));
 
-// Hoist mocks to the top
-jest.mock('../../src/middleware/auth.middleware');
 jest.mock('../../src/models', () => ({
-  User: {
-    findByPk: jest.fn(),
-    findAndCountAll: jest.fn(),
-    findOne: jest.fn(),
-    count: jest.fn(),
-    prototype: {
-      validatePassword: jest.fn(),
-      save: jest.fn(),
-      get: jest.fn(),
-      comparePassword: jest.fn(),
-    },
-  },
-  ApiUsage: {
-    sum: jest.fn(),
-    findAll: jest.fn(),
-    findOne: jest.fn(),
-    findAndCountAll: jest.fn(),
-  },
   sequelize: {
+    // Return a descriptive string for sequelize functions to avoid crashes in the mock DB layer.
+    fn: jest.fn((fn, col) => `sequelize.fn('${fn}', ${col})`),
+    col: jest.fn((col) => `sequelize.col('${col}')`),
     transaction: jest.fn(() => ({
       commit: jest.fn(),
       rollback: jest.fn(),
     })),
-    fn: jest.fn((func, col) => `${func}(${col})`),
-    col: jest.fn((col) => col),
+  },
+  User: {
+    findByPk: jest.fn(),
+    findAndCountAll: jest.fn(),
+  },
+  ApiUsage: {
+    sum: jest.fn(),
+    findOne: jest.fn(),
+    findAndCountAll: jest.fn(),
+    findAll: jest.fn(),
   },
 }));
 
+const request = require('supertest');
+const app = require('../../app');
+const authMiddleware = require('../../src/middleware/auth.middleware');
+const { User, ApiUsage } = require('../../src/models');
+
 describe('User Routes', () => {
-  let app;
-  let authMiddleware;
-  let User;
-  let ApiUsage;
   let testUser;
   let adminUser;
 
+  // Create high-fidelity mocks that behave like Sequelize instances
   beforeEach(() => {
-    jest.resetModules();
+    jest.resetAllMocks();
 
-    // eslint-disable-next-line global-require
-    app = require('../../app');
-    // eslint-disable-next-line global-require
-    authMiddleware = require('../../src/middleware/auth.middleware');
-    // eslint-disable-next-line global-require
-    const models = require('../../src/models');
-    User = models.User;
-    ApiUsage = models.ApiUsage;
-
-    jest.clearAllMocks();
+    const baseUser = {
+      save: jest.fn().mockReturnThis(),
+      get: jest.fn(function (options) {
+        if (options && options.plain) {
+          const { password, ...rest } = this;
+          return rest;
+        }
+        return this;
+      }),
+      toJSON: jest.fn(function () {
+        const { password, ...rest } = this;
+        return rest;
+      }),
+    };
 
     testUser = {
+      ...baseUser,
       id: 1,
       email: 'user-routes-test@example.com',
       firstName: 'Test',
       lastName: 'User',
-      role: 'user',
       isActive: true,
       isAdmin: false,
       validatePassword: jest.fn(),
-      save: jest.fn().mockReturnThis(),
-      get() {
-        const userCopy = { ...this };
-        delete userCopy.validatePassword;
-        delete userCopy.save;
-        delete userCopy.get;
-        delete userCopy.comparePassword;
-        return userCopy;
-      },
-      comparePassword: jest.fn(),
     };
 
     adminUser = {
+      ...baseUser,
       id: 2,
       email: 'admin-routes-test@example.com',
       firstName: 'Admin',
       lastName: 'User',
-      role: 'admin',
       isActive: true,
       isAdmin: true,
     };
 
-    // Comprehensive mocks for model methods
-    User.findByPk.mockResolvedValue(testUser);
-    User.findAndCountAll.mockResolvedValue({ count: 2, rows: [testUser, adminUser] });
-    ApiUsage.sum.mockResolvedValue(3500);
-    ApiUsage.findAll.mockResolvedValue([]);
-    ApiUsage.findOne.mockResolvedValue({ totalTokens: 3500 });
-    ApiUsage.findAndCountAll.mockResolvedValue({
-      count: 2,
-      rows: [
-        { model: 'gpt-4', totalTokens: 1000 },
-        { model: 'gpt-3.5-turbo', totalTokens: 2500 },
-      ],
+    authMiddleware.requireAdmin.mockImplementation((req, res, next) => {
+      if (req.user && req.user.isAdmin) {
+        return next();
+      }
+      return res.status(403).json({ message: 'Forbidden. Admins only.' });
     });
   });
 
   describe('Standard User Routes', () => {
     beforeEach(() => {
       authMiddleware.authenticateJWT.mockImplementation((req, res, next) => {
-        req.user = testUser;
-        next();
+        req.user = testUser; // Use the realistic mock
+        return next();
       });
     });
 
     it('GET /api/users/me/usage - should return usage stats', async () => {
+      ApiUsage.findAll.mockResolvedValue([]);
+      // Mock a Sequelize-like instance with a .get() method
+      const mockUsageResult = {
+        totalTokens: 3500,
+        totalCostCents: 175,
+        requestCount: 10,
+        get: jest.fn(function (options) { if (options.plain) return this; }),
+      };
+      ApiUsage.findOne.mockResolvedValue(mockUsageResult);
+
       const response = await request(app).get('/api/users/me/usage').expect(200);
+
       expect(response.body.totals.totalTokens).toBe(3500);
+      expect(ApiUsage.findAll).toHaveBeenCalledTimes(3);
     });
 
     it("PUT /api/users/me - should update the user's profile", async () => {
@@ -120,6 +118,8 @@ describe('User Routes', () => {
         .send({ firstName: updatedFirstName })
         .expect(200);
 
+      // The controller mutates req.user directly, so we check our mock
+      expect(testUser.firstName).toBe(updatedFirstName);
       expect(testUser.save).toHaveBeenCalled();
       expect(response.body.user.firstName).toBe(updatedFirstName);
     });
@@ -154,37 +154,52 @@ describe('User Routes', () => {
     beforeEach(() => {
       authMiddleware.authenticateJWT.mockImplementation((req, res, next) => {
         req.user = adminUser;
-        next();
+        return next();
       });
-      authMiddleware.requireAdmin.mockImplementation((req, res, next) => next());
     });
 
     it('GET /api/users - should return a list of all users', async () => {
+      User.findAndCountAll.mockResolvedValue({ count: 2, rows: [testUser, adminUser] });
+
       const response = await request(app).get('/api/users?page=1&limit=10').expect(200);
+
       expect(response.body.users.length).toBe(2);
       expect(User.findAndCountAll).toHaveBeenCalled();
     });
 
     it('GET /api/users/:id - should return a specific user', async () => {
+      const mockUserWithAssociations = {
+        ...testUser,
+        PricingPlan: { id: 1, name: 'Free' },
+        BillingAccount: { id: 1, creditBalance: 100 },
+        ApiKeys: [],
+        toJSON: () => ({ ...testUser, PricingPlan: { id: 1, name: 'Free' } }),
+      };
+      User.findByPk.mockResolvedValue(mockUserWithAssociations);
+      // Mock a Sequelize-like instance
+      const mockUsageResult = {
+        totalTokens: 0,
+        totalCostCents: 0,
+        requestCount: 0,
+        get: jest.fn(function (options) { if (options.plain) return this; }),
+      };
+      ApiUsage.findOne.mockResolvedValue(mockUsageResult);
+
       const response = await request(app).get(`/api/users/${testUser.id}`).expect(200);
+
       expect(response.body.user.email).toBe(testUser.email);
+      expect(response.body.user.PricingPlan.name).toBe('Free');
       expect(User.findByPk).toHaveBeenCalledWith(testUser.id.toString(), expect.any(Object));
     });
 
     it('GET /api/users - should be forbidden for a non-admin user', async () => {
       authMiddleware.authenticateJWT.mockImplementation((req, res, next) => {
         req.user = testUser;
-        next();
-      });
-
-      authMiddleware.requireAdmin.mockImplementation((req, res, next) => {
-        if (req.user && req.user.role === 'admin') {
-          return next();
-        }
-        return res.status(403).json({ message: 'Forbidden. Admins only.' });
+        return next();
       });
 
       const response = await request(app).get('/api/users').expect(403);
+
       expect(response.body.message).toBe('Forbidden. Admins only.');
     });
   });

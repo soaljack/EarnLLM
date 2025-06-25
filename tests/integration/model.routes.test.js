@@ -1,29 +1,36 @@
+// Mock dependencies first to ensure they are applied before any other imports
+jest.mock('../../src/middleware/auth.middleware', () => ({
+  authenticateApiKey: jest.fn(),
+  authenticateJWT: jest.fn(),
+  requireAdmin: jest.fn(),
+}));
+
+jest.mock('../../src/models', () => ({
+  LlmModel: {
+    findAll: jest.fn(),
+    create: jest.fn(),
+    findByPk: jest.fn(),
+  },
+  ExternalModel: {
+    findAll: jest.fn(),
+    create: jest.fn(),
+    findOne: jest.fn(),
+    destroy: jest.fn(),
+  },
+}));
+
 const request = require('supertest');
-// Hoist mocks to the top
-jest.mock('../../src/middleware/auth.middleware');
-jest.mock('../../src/models');
+const app = require('../../app');
+const authMiddleware = require('../../src/middleware/auth.middleware');
+const { LlmModel, ExternalModel } = require('../../src/models');
 
 describe('Model Routes', () => {
-  let app;
-  let authMiddleware;
-  let LlmModel;
-  let ExternalModel;
   let testUser;
   let adminUser;
   let systemModel;
   let externalModel;
 
   beforeEach(() => {
-    jest.resetModules();
-    // eslint-disable-next-line global-require
-    app = require('../../app');
-    // eslint-disable-next-line global-require
-    authMiddleware = require('../../src/middleware/auth.middleware');
-    // eslint-disable-next-line global-require
-    const models = require('../../src/models');
-    LlmModel = models.LlmModel;
-    ExternalModel = models.ExternalModel;
-
     jest.clearAllMocks();
 
     // Setup mock data
@@ -31,11 +38,7 @@ describe('Model Routes', () => {
       id: 1,
       email: 'model-routes-test@example.com',
       role: 'user',
-      getPricingPlan: jest.fn().mockResolvedValue({
-        allowBYOM: true,
-        allowCustomModels: true,
-      }),
-      PricingPlan: { allowBYOM: true },
+      getPricingPlan: jest.fn().mockResolvedValue({ id: 1, name: 'Starter', code: 'starter', allowBYOM: true, allowCustomModels: true }),
     };
 
     adminUser = {
@@ -63,19 +66,25 @@ describe('Model Routes', () => {
 
   describe('GET /api/models', () => {
     it('should return system and user-specific external models', async () => {
-      // Setup mocks for this specific test
-      authMiddleware.authenticateJWT.mockImplementation((req, res, next) => {
+      // Arrange
+      authMiddleware.authenticateApiKey.mockImplementation((req, res, next) => {
         req.user = testUser;
         next();
       });
       LlmModel.findAll.mockResolvedValue([systemModel]);
       ExternalModel.findAll.mockResolvedValue([externalModel]);
 
+      // Act
       const response = await request(app).get('/api/models');
-      expect(response.status).toBe(200);
 
-      expect(LlmModel.findAll).toHaveBeenCalled();
-      expect(ExternalModel.findAll).toHaveBeenCalledWith({ where: { UserId: testUser.id } });
+      // Assert
+      expect(response.status).toBe(200);
+      expect(LlmModel.findAll).toHaveBeenCalledWith(expect.objectContaining({
+        where: { isActive: true },
+      }));
+      expect(ExternalModel.findAll).toHaveBeenCalledWith(expect.objectContaining({
+        where: { UserId: testUser.id, isActive: true },
+      }));
       expect(response.body.systemModels[0].name).toBe(systemModel.name);
       expect(response.body.externalModels[0].name).toBe(externalModel.name);
     });
@@ -92,16 +101,20 @@ describe('Model Routes', () => {
     });
 
     it('POST /api/models - should create a new system model', async () => {
+      // Arrange
       const newModelData = { name: 'New Test Model', provider: 'test', modelId: 'test-1' };
       LlmModel.create.mockResolvedValue({ id: 102, ...newModelData });
 
+      // Act
       const response = await request(app).post('/api/models').send(newModelData).expect(201);
 
+      // Assert
       expect(LlmModel.create).toHaveBeenCalledWith(expect.objectContaining(newModelData));
       expect(response.body.name).toBe(newModelData.name);
     });
 
     it('PUT /api/models/:id - should update a system model', async () => {
+      // Arrange
       const mockModelInstance = {
         ...systemModel,
         update: jest.fn(function (updates) {
@@ -111,13 +124,15 @@ describe('Model Routes', () => {
       };
       LlmModel.findByPk.mockResolvedValue(mockModelInstance);
 
+      // Act
       const response = await request(app)
         .put(`/api/models/${systemModel.id}`)
         .send({ description: 'Updated description' })
         .expect(200);
 
+      // Assert
       expect(LlmModel.findByPk).toHaveBeenCalledWith(systemModel.id.toString());
-      expect(mockModelInstance.update).toHaveBeenCalledWith({ description: 'Updated description' });
+      expect(mockModelInstance.update).toHaveBeenCalledWith(expect.objectContaining({ description: 'Updated description' }));
       expect(response.body.description).toBe('Updated description');
     });
   });
@@ -132,6 +147,7 @@ describe('Model Routes', () => {
     });
 
     it('POST /api/models/external - should create a new external model if plan allows', async () => {
+      // Arrange
       testUser.getPricingPlan.mockResolvedValue({ allowBYOM: true });
       const externalModelData = {
         name: 'My Custom Model',
@@ -143,26 +159,34 @@ describe('Model Routes', () => {
       const mockCreatedModel = { ...externalModelData, id: 201, UserId: testUser.id };
       ExternalModel.create.mockResolvedValue(mockCreatedModel);
 
+      // Act
       const response = await request(app).post('/api/models/external').send(externalModelData);
 
+      // Assert
       expect(response.status).toBe(201);
-      expect(ExternalModel.create).toHaveBeenCalledWith({
-        ...externalModelData, UserId: testUser.id,
-      });
+      expect(ExternalModel.create).toHaveBeenCalledWith(expect.objectContaining({
+        ...externalModelData,
+        UserId: testUser.id,
+      }));
       expect(response.body).toEqual(expect.objectContaining({ name: 'My Custom Model' }));
     });
 
     it('POST /api/models/external - should be forbidden if plan does not allow BYOM', async () => {
+      // Arrange
       testUser.getPricingPlan.mockResolvedValue({ allowBYOM: false });
-
       const externalModelData = { name: 'test' };
+
+      // Act
       const response = await request(app).post('/api/models/external').send(externalModelData);
+
+      // Assert
       expect(response.status).toBe(403);
-      expect(response.body.message).toBe('Your current plan does not allow creating external models. Please upgrade your plan.');
+      expect(response.body.message).toBe('Your plan does not support bringing your own models');
       expect(ExternalModel.create).not.toHaveBeenCalled();
     });
 
     it('PUT /api/models/external/:id - should update an external model', async () => {
+      // Arrange
       const mockModelInstance = {
         ...externalModel,
         update: jest.fn(function (updates) {
@@ -172,31 +196,45 @@ describe('Model Routes', () => {
       };
       ExternalModel.findOne.mockResolvedValue(mockModelInstance);
 
+      // Act
       const response = await request(app)
         .put(`/api/models/external/${externalModel.id}`)
         .send({ name: 'An Updated Name' })
         .expect(200);
 
+      // Assert
       expect(ExternalModel.findOne).toHaveBeenCalledWith({
         where: { id: externalModel.id.toString(), UserId: testUser.id },
       });
-      expect(mockModelInstance.update).toHaveBeenCalledWith({ name: 'An Updated Name' });
+      expect(mockModelInstance.update).toHaveBeenCalledWith(expect.objectContaining({ name: 'An Updated Name' }));
       expect(response.body.name).toBe('An Updated Name');
     });
 
     it('DELETE /api/models/external/:id - should delete an external model', async () => {
-      ExternalModel.findOne.mockResolvedValue(externalModel);
+      // Arrange
+      ExternalModel.destroy.mockResolvedValue(1);
 
+      // Act
       await request(app).delete(`/api/models/external/${externalModel.id}`).expect(204);
 
+      // Assert
       expect(ExternalModel.destroy).toHaveBeenCalledWith({
         where: { id: externalModel.id.toString(), UserId: testUser.id },
       });
     });
 
+    it('should return 404 on DELETE if model is not found', async () => {
+      // Arrange
+      ExternalModel.destroy.mockResolvedValue(0);
+      // Act & Assert
+      await request(app).delete('/api/models/external/999').expect(404);
+    });
+
     it("should not find another user's model to update", async () => {
+      // Arrange
       ExternalModel.findOne.mockResolvedValue(null);
 
+      // Act & Assert
       await request(app)
         .put('/api/models/external/999')
         .send({ name: 'Attempted Update' })

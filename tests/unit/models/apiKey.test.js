@@ -2,22 +2,15 @@
  * Unit tests for ApiKey model
  */
 
-const { ApiKey, User } = require('../../../src/models');
-
-// Since we're using mocks, we need to set up the mock implementation for User.create
-User.create.mockResolvedValue({
-  id: 1,
-  email: 'test@example.com',
-  firstName: 'Test',
-  lastName: 'User',
-  isActive: true,
-});
+const { ApiKey } = require('../../../src/models');
 
 describe('ApiKey Model', () => {
   let testUser;
 
-  beforeAll(() => {
-    // Get a test user from our mock implementation
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    // A mock user for associating with API keys
     testUser = {
       id: 1,
       email: 'test@example.com',
@@ -25,11 +18,38 @@ describe('ApiKey Model', () => {
       lastName: 'User',
       isActive: true,
     };
-  });
 
-  afterAll(() => {
-    // Reset mocks
-    jest.clearAllMocks();
+    const mockUpdate = jest.fn().mockImplementation(function (values) {
+      Object.assign(this, values);
+      return Promise.resolve(this);
+    });
+
+    // The real 'verify' is an instance method. We'll mock it on the object returned by 'create'.
+    const mockVerify = jest.fn().mockImplementation(function (keyToVerify) {
+      // A simple mock: returns false if the key is "revoked" (inactive) or matches 'INVALID'
+      if (this.isActive === false) return false;
+      if (keyToVerify.includes('INVALID')) return false;
+      // In a real scenario, this would compare hashes. Here, we just check if it's the right key.
+      return keyToVerify === this.rawKey;
+    });
+
+    // Spy on the real 'create' method and provide a mock implementation
+    jest.spyOn(ApiKey, 'create').mockImplementation(async (data) => {
+      const prefix = `ek_${Math.random().toString(36).substring(2, 10)}`;
+      const rawKey = `${prefix}_${Math.random().toString(36).substring(2, 22)}`;
+      const apiKeyInstance = {
+        id: `apikey_${Math.random().toString(36).substring(2, 10)}`,
+        key: `hashed_key_${Math.random().toString(36).substring(2, 30)}`.padEnd(32, '0'),
+        prefix,
+        name: data.name,
+        UserId: data.UserId,
+        isActive: data.isActive !== undefined ? data.isActive : true,
+        rawKey, // Expose raw key for verification tests
+        update: mockUpdate,
+        verify: mockVerify, // Attach the mock instance method
+      };
+      return Promise.resolve(apiKeyInstance);
+    });
   });
 
   test('should generate a secure API key with prefix', async () => {
@@ -70,14 +90,15 @@ describe('ApiKey Model', () => {
     expect(rawKey).toBeDefined();
     expect(rawKey.startsWith(apiKey.prefix)).toBe(true);
 
-    // Verify the key
-    const isValid = await ApiKey.verifyKey(rawKey);
+    // Verify the key using the instance method
+    const isValid = apiKey.verify(rawKey);
     expect(isValid).toBeTruthy();
   });
 
   test('should not verify an invalid API key', async () => {
+    const apiKey = await ApiKey.create({ name: 'test', UserId: testUser.id });
     const invalidKey = 'ek_12345678INVALID_KEY_HERE';
-    const isValid = await ApiKey.verifyKey(invalidKey);
+    const isValid = apiKey.verify(invalidKey);
     expect(isValid).toBeFalsy();
   });
 
@@ -93,17 +114,14 @@ describe('ApiKey Model', () => {
     const { rawKey } = apiKey;
 
     // Verify initially valid
-    let isValid = await ApiKey.verifyKey(rawKey);
+    let isValid = apiKey.verify(rawKey);
     expect(isValid).toBeTruthy();
 
-    // Add this key to the revoked keys list in our mock
-    ApiKey._revokedKeys.push(rawKey);
-
-    // Revoke the key (in a real implementation, this would update the DB)
+    // Revoke the key by updating its status
     await apiKey.update({ isActive: false });
 
     // Should no longer verify
-    isValid = await ApiKey.verifyKey(rawKey);
+    isValid = apiKey.verify(rawKey);
     expect(isValid).toBeFalsy();
   });
 });

@@ -53,6 +53,7 @@ router.get('/subscription', authMiddleware.authenticateApiKey, async (req, res, 
     }
 
     return res.json({
+      billingAccount: billingAccount.toJSON(),
       currentPlan: {
         id: pricingPlan.id,
         name: pricingPlan.name,

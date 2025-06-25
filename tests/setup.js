@@ -5,11 +5,7 @@
 // Set environment to test
 process.env.NODE_ENV = 'test';
 
-// Set test database
-process.env.DB_NAME = 'earnllm_test';
-
 // Import mocks
-const sequelizeMock = require('./mocks/sequelize.mock');
 const _authMiddlewareMock = require('./mocks/auth.middleware.mock');
 const authHelpersMock = require('./mocks/authHelpers.mock');
 
@@ -82,9 +78,6 @@ jest.mock('openai', () => ({
     },
   })),
 }));
-
-// Mock database models
-jest.mock('../src/models', () => sequelizeMock);
 
 // Mock authentication helpers
 jest.doMock('../src/utils/auth', () => authHelpersMock, { virtual: true });

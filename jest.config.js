@@ -32,9 +32,7 @@ module.exports = {
     // Enhanced tests should run to ensure we catch all issues
   ],
 
-  // Setup and teardown for tests
-  globalSetup: './tests/jest.setup.js',
-  globalTeardown: './tests/jest.teardown.js',
+
 
   // Setup files to run before each test
   // Note: Combined with the entry below
