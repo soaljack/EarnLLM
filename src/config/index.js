@@ -35,14 +35,34 @@ const envVarsSchema = Joi.object(
       then: Joi.optional(),
       otherwise: Joi.required(),
     }).description('Database name'),
-    JWT_SECRET: Joi.string().required().description('JWT secret key'),
+    JWT_SECRET: Joi.string().when('NODE_ENV', {
+      is: 'test',
+      then: Joi.optional(),
+      otherwise: Joi.required(),
+    }).description('JWT secret key'),
     JWT_ACCESS_EXPIRATION_MINUTES: Joi.number()
       .default(30)
       .description('minutes after which access tokens expire'),
-    OPENAI_API_KEY: Joi.string().required().description('OpenAI API Key'),
-    STRIPE_SECRET_KEY: Joi.string().required().description('Stripe Secret Key'),
-    STRIPE_WEBHOOK_SECRET: Joi.string().required().description('Stripe Webhook Secret'),
-    FRONTEND_URL: Joi.string().required().description('Frontend URL for CORS'),
+    OPENAI_API_KEY: Joi.string().when('NODE_ENV', {
+      is: 'test',
+      then: Joi.optional(),
+      otherwise: Joi.required(),
+    }).description('OpenAI API Key'),
+    STRIPE_SECRET_KEY: Joi.string().when('NODE_ENV', {
+      is: 'test',
+      then: Joi.optional(),
+      otherwise: Joi.required(),
+    }).description('Stripe Secret Key'),
+    STRIPE_WEBHOOK_SECRET: Joi.string().when('NODE_ENV', {
+      is: 'test',
+      then: Joi.optional(),
+      otherwise: Joi.required(),
+    }).description('Stripe Webhook Secret'),
+    FRONTEND_URL: Joi.string().when('NODE_ENV', {
+      is: 'test',
+      then: Joi.optional(),
+      otherwise: Joi.required(),
+    }).description('Frontend URL for CORS'),
   },
 )
   .unknown();
