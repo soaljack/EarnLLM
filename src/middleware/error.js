@@ -1,4 +1,3 @@
-const { ValidationError } = require('sequelize');
 const config = require('../config');
 const logger = require('../config/logger');
 const ApiError = require('../utils/ApiError');

@@ -9,7 +9,7 @@ describe('LlmModel Model', () => {
     jest.clearAllMocks();
 
     // Mock instance method
-    const mockUpdate = jest.fn().mockImplementation(function (values) {
+    const mockUpdate = jest.fn().mockImplementation(function update(values) {
       Object.assign(this, values);
       return Promise.resolve(this);
     });
@@ -17,7 +17,13 @@ describe('LlmModel Model', () => {
     // Mock static method
     jest.spyOn(LlmModel, 'create').mockImplementation(async (modelData) => {
       // Simulate validation for required fields
-      if (!modelData.name || !modelData.provider || !modelData.modelId || !modelData.basePromptTokenCostInCents || !modelData.baseCompletionTokenCostInCents) {
+      if (
+        !modelData.name
+        || !modelData.provider
+        || !modelData.modelId
+        || !modelData.basePromptTokenCostInCents
+        || !modelData.baseCompletionTokenCostInCents
+      ) {
         return Promise.reject(new Error('Validation error: Missing required fields'));
       }
 

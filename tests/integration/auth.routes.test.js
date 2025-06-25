@@ -33,9 +33,11 @@ jest.mock('../../src/models', () => ({
 jest.mock('jsonwebtoken');
 
 const request = require('supertest');
-const app = require('../../app');
 const jwt = require('jsonwebtoken');
-const { User, PricingPlan, BillingAccount, sequelize } = require('../../src/models');
+const app = require('../../app');
+const {
+  User, PricingPlan, BillingAccount,
+} = require('../../src/models');
 
 describe('Authentication Routes', () => {
   beforeEach(() => {
@@ -96,7 +98,8 @@ describe('Authentication Routes', () => {
       User.findOne.mockResolvedValue(null);
       PricingPlan.findOne.mockResolvedValue({ id: 1, code: 'starter' });
 
-      const { password, ...incompletePayload } = registerPayload;
+      const incompletePayload = { ...registerPayload };
+      delete incompletePayload.password;
 
       // Act & Assert
       await request(app).post('/api/auth/register').send(incompletePayload).expect(400);

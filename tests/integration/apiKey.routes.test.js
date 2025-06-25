@@ -78,7 +78,7 @@ describe('API Key Routes', () => {
 
       // Assert
       expect(ApiKey.create).toHaveBeenCalledWith(
-        expect.objectContaining({ name: keyName, UserId: testUser.id })
+        expect.objectContaining({ name: keyName, UserId: testUser.id }),
       );
       expect(response.body).toHaveProperty('key');
       expect(response.body.key).toBe('sk-test-mock-key-string');
@@ -103,7 +103,16 @@ describe('API Key Routes', () => {
       // Assert
       expect(ApiKey.findAll).toHaveBeenCalledWith({
         where: { UserId: testUser.id },
-        attributes: ['id', 'name', 'prefix', 'isActive', 'lastUsedAt', 'expiresAt', 'permissions', 'createdAt'],
+        attributes: [
+          'id',
+          'name',
+          'prefix',
+          'isActive',
+          'lastUsedAt',
+          'expiresAt',
+          'permissions',
+          'createdAt',
+        ],
       });
       expect(response.body).toBeInstanceOf(Array);
       expect(response.body.length).toBe(1);
@@ -129,7 +138,10 @@ describe('API Key Routes', () => {
         where: { id: testKey.id.toString(), UserId: testUser.id },
         transaction: mockTransaction,
       });
-      expect(testKey.update).toHaveBeenCalledWith({ isActive: false }, { transaction: mockTransaction });
+      expect(testKey.update).toHaveBeenCalledWith(
+        { isActive: false },
+        { transaction: mockTransaction },
+      );
       expect(mockTransaction.commit).toHaveBeenCalled();
       expect(response.body.message).toBe('API key revoked successfully');
     });

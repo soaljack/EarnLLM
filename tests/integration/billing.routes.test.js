@@ -33,7 +33,7 @@ const mockDb = {
 jest.mock('../../src/models', () => mockDb);
 
 // Destructure models for easy access in tests
-const { User, PricingPlan, BillingAccount } = mockDb;
+const { PricingPlan, BillingAccount } = mockDb;
 
 // Mock logger to prevent hanging
 jest.mock('../../src/config/logger', () => ({
@@ -47,13 +47,16 @@ jest.mock('../../src/config/logger', () => ({
 const app = require('../../app');
 
 describe('Billing Routes', () => {
-  let testUser, proPlan, mockBillingAccount;
+  let testUser; let proPlan; let
+    mockBillingAccount;
 
   beforeEach(() => {
     jest.clearAllMocks();
 
     // --- Mock Data Setup ---
-    proPlan = { id: 2, name: 'Pro', stripePriceId: 'price_pro_123', isActive: true };
+    proPlan = {
+      id: 2, name: 'Pro', stripePriceId: 'price_pro_123', isActive: true,
+    };
     mockBillingAccount = {
       stripeCustomerId: 'cus_mock_12345',
       credits: 0,

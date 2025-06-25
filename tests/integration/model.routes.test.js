@@ -38,7 +38,9 @@ describe('Model Routes', () => {
       id: 1,
       email: 'model-routes-test@example.com',
       role: 'user',
-      getPricingPlan: jest.fn().mockResolvedValue({ id: 1, name: 'Starter', code: 'starter', allowBYOM: true, allowCustomModels: true }),
+      getPricingPlan: jest.fn().mockResolvedValue({
+        id: 1, name: 'Starter', code: 'starter', allowBYOM: true, allowCustomModels: true,
+      }),
     };
 
     adminUser = {
@@ -117,7 +119,7 @@ describe('Model Routes', () => {
       // Arrange
       const mockModelInstance = {
         ...systemModel,
-        update: jest.fn(function (updates) {
+        update: jest.fn(function updateSystemModel(updates) {
           Object.assign(this, updates);
           return Promise.resolve(this);
         }),
@@ -189,7 +191,7 @@ describe('Model Routes', () => {
       // Arrange
       const mockModelInstance = {
         ...externalModel,
-        update: jest.fn(function (updates) {
+        update: jest.fn(function updateExternalModel(updates) {
           Object.assign(this, updates);
           return Promise.resolve(this);
         }),

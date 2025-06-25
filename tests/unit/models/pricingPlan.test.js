@@ -16,7 +16,7 @@ describe('PricingPlan Model', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    const mockUpdate = jest.fn().mockImplementation(function (values) {
+    const mockUpdate = jest.fn().mockImplementation(function update(values) {
       Object.assign(this, values);
       return this;
     });
@@ -109,7 +109,7 @@ describe('PricingPlan Model', () => {
     const invalidPlanData = { name: 'Invalid Plan', monthlyFee: 1000 };
 
     await expect(PricingPlan.create(invalidPlanData)).rejects.toThrow(
-      'Validation error: code cannot be null'
+      'Validation error: code cannot be null',
     );
   });
 

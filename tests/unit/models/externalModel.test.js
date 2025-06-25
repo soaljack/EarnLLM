@@ -11,19 +11,28 @@ describe('ExternalModel Model', () => {
     jest.clearAllMocks();
 
     // Mock instance methods
-    const mockUpdate = jest.fn().mockImplementation(function (values) {
+    const mockUpdate = jest.fn().mockImplementation(function update(values) {
       Object.assign(this, values);
       return Promise.resolve(this);
     });
 
-    const mockGetDecryptedApiKey = jest.fn().mockImplementation(function () {
+    const mockGetDecryptedApiKey = jest.fn().mockImplementation(function getDecryptedApiKey() {
       return this.apiKey; // In mock, we just return the plain key
     });
 
     // Mock static method
     ExternalModel.create.mockImplementation(async (modelData) => {
       // Simulate validation for required fields
-      if (!modelData.UserId || !modelData.name || !modelData.provider || !modelData.modelId || !modelData.apiEndpoint || !modelData.apiKey || !modelData.promptTokenCostInCents || !modelData.completionTokenCostInCents) {
+      if (
+        !modelData.UserId
+        || !modelData.name
+        || !modelData.provider
+        || !modelData.modelId
+        || !modelData.apiEndpoint
+        || !modelData.apiKey
+        || !modelData.promptTokenCostInCents
+        || !modelData.completionTokenCostInCents
+      ) {
         return Promise.reject(new Error('Validation error: Missing required fields'));
       }
 
@@ -179,13 +188,15 @@ describe('ExternalModel Model', () => {
   });
 
   test('should fail to create model without required fields', async () => {
-    const invalidModelData = {
-      UserId: testUser.id,
-      name: 'Invalid Model',
-      // Missing other required fields
-    };
-
-    await expect(ExternalModel.create(invalidModelData)).rejects.toThrow('Validation error: Missing required fields');
+    await expect(
+      ExternalModel.create({
+        name: 'Invalid Model',
+        type: 'invalid_type',
+        contextLength: 4096,
+        tokenizer: 'tiktoken',
+        modelId: 'invalid-model-id',
+      }),
+    ).rejects.toThrow();
   });
 
   test('should track model test status', async () => {

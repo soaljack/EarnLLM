@@ -13,10 +13,10 @@ const mockModels = {
     findAndCountAll: jest.fn(),
   },
   ApiKey: {
-    generateKey: jest.fn(() => ({ 
+    generateKey: jest.fn(() => ({
       prefix: 'sk-test-mock',
       fullKey: 'sk-test-mock_FULLKEY',
-      hashedKey: 'hashedKey'
+      hashedKey: 'hashedKey',
     })),
     create: jest.fn(),
     findOne: jest.fn(),
@@ -70,12 +70,6 @@ const mockModels = {
 
 // Mock sequelize instance
 const sequelizeMock = {
-  authenticate: jest.fn(),
-  sync: jest.fn(),
-  transaction: jest.fn(),
-  close: jest.fn(),
-  query: jest.fn(),
-  define: jest.fn(),
   authenticate: jest.fn().mockResolvedValue(true),
   sync: jest.fn().mockResolvedValue(true),
   transaction: jest.fn().mockImplementation((callback) => {

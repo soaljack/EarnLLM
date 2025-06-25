@@ -19,13 +19,13 @@ describe('ApiKey Model', () => {
       isActive: true,
     };
 
-    const mockUpdate = jest.fn().mockImplementation(function (values) {
+    const mockUpdate = jest.fn().mockImplementation(function update(values) {
       Object.assign(this, values);
       return Promise.resolve(this);
     });
 
     // The real 'verify' is an instance method. We'll mock it on the object returned by 'create'.
-    const mockVerify = jest.fn().mockImplementation(function (keyToVerify) {
+    const mockVerify = jest.fn().mockImplementation(function verify(keyToVerify) {
       // A simple mock: returns false if the key is "revoked" (inactive) or matches 'INVALID'
       if (this.isActive === false) return false;
       if (keyToVerify.includes('INVALID')) return false;

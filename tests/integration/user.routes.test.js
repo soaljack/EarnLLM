@@ -43,15 +43,17 @@ describe('User Routes', () => {
 
     const baseUser = {
       save: jest.fn().mockReturnThis(),
-      get: jest.fn(function (options) {
+      get: jest.fn(function get(options) {
         if (options && options.plain) {
-          const { password, ...rest } = this;
+          const { ...rest } = this;
+          delete rest.password;
           return rest;
         }
         return this;
       }),
-      toJSON: jest.fn(function () {
-        const { password, ...rest } = this;
+      toJSON: jest.fn(function toJSON() {
+        const { ...rest } = this;
+        delete rest.password;
         return rest;
       }),
     };
@@ -79,9 +81,10 @@ describe('User Routes', () => {
 
     authMiddleware.requireAdmin.mockImplementation((req, res, next) => {
       if (req.user && req.user.isAdmin) {
-        return next();
+        next();
+      } else {
+        res.status(403).json({ message: 'Forbidden. Admins only.' });
       }
-      return res.status(403).json({ message: 'Forbidden. Admins only.' });
     });
   });
 
@@ -100,7 +103,12 @@ describe('User Routes', () => {
         totalTokens: 3500,
         totalCostCents: 175,
         requestCount: 10,
-        get: jest.fn(function (options) { if (options.plain) return this; }),
+        get: jest.fn(function getUsage(options) {
+          if (options && options.plain) {
+            return this;
+          }
+          return undefined;
+        }),
       };
       ApiUsage.findOne.mockResolvedValue(mockUsageResult);
 
@@ -181,7 +189,12 @@ describe('User Routes', () => {
         totalTokens: 0,
         totalCostCents: 0,
         requestCount: 0,
-        get: jest.fn(function (options) { if (options.plain) return this; }),
+        get: jest.fn(function getUsage(options) {
+          if (options && options.plain) {
+            return this;
+          }
+          return undefined;
+        }),
       };
       ApiUsage.findOne.mockResolvedValue(mockUsageResult);
 

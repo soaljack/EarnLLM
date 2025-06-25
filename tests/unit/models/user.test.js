@@ -4,10 +4,8 @@ jest.mock('bcryptjs', () => ({
   compare: jest.fn(),
 }));
 
-
-
-const { User } = require('../../../src/models');
 const bcrypt = require('bcryptjs');
+const { User } = require('../../../src/models');
 
 describe('User Model', () => {
   beforeEach(() => {
@@ -18,7 +16,8 @@ describe('User Model', () => {
     bcrypt.compare.mockImplementation((plain, _hashed) => Promise.resolve(plain === 'correct_password'));
 
     // --- Mock instance methods that would be on a real Sequelize instance ---
-    const mockUpdate = jest.fn().mockImplementation(async function (values) {
+
+    const mockUpdate = jest.fn().mockImplementation(async function update(values) {
       Object.assign(this, values);
       if (values.password) {
         this.password = await bcrypt.hash(values.password, 10);
@@ -26,9 +25,11 @@ describe('User Model', () => {
       return this;
     });
 
-    const mockValidatePassword = jest.fn().mockImplementation(async function (password) {
-      return bcrypt.compare(password, this.password);
-    });
+    const mockValidatePassword = jest.fn().mockImplementation(
+      async function validatePassword(password) {
+        return bcrypt.compare(password, this.password);
+      },
+    );
 
     // --- Spy on the static User.create method ---
     jest.spyOn(User, 'create').mockImplementation(async (userData) => {

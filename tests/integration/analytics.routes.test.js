@@ -7,7 +7,9 @@ jest.mock('../../src/middleware/auth.middleware', () => ({
 
 jest.mock('../../src/models', () => ({
   User: { count: jest.fn(), findAll: jest.fn() },
-  ApiUsage: { sum: jest.fn(), count: jest.fn(), findOne: jest.fn(), findAll: jest.fn() },
+  ApiUsage: {
+    sum: jest.fn(), count: jest.fn(), findOne: jest.fn(), findAll: jest.fn(),
+  },
   BillingAccount: { sum: jest.fn(), findAll: jest.fn() },
   ApiKey: { count: jest.fn() },
   LlmModel: {},
@@ -26,7 +28,9 @@ const request = require('supertest');
 const { Op } = require('sequelize');
 const app = require('../../app');
 const authMiddleware = require('../../src/middleware/auth.middleware');
-const { User, ApiUsage, BillingAccount, ApiKey, LlmModel, ExternalModel, sequelize } = require('../../src/models');
+const {
+  User, ApiUsage, BillingAccount, ApiKey,
+} = require('../../src/models');
 
 describe('Analytics Routes', () => {
   let adminUser;
@@ -61,7 +65,9 @@ describe('Analytics Routes', () => {
         User.findAll.mockResolvedValue([]);
         ApiKey.count.mockResolvedValue(50);
         ApiUsage.sum.mockResolvedValue(50000); // Keep for any legacy use
-        ApiUsage.findOne.mockResolvedValue({ totalTokens: 1000, totalCostCents: 10, requestCount: 100 });
+        ApiUsage.findOne.mockResolvedValue({
+          totalTokens: 1000, totalCostCents: 10, requestCount: 100,
+        });
         ApiUsage.findAll.mockResolvedValue([]);
         BillingAccount.sum.mockResolvedValue(250.75); // Keep for any legacy use
         BillingAccount.findAll.mockResolvedValue([{ getDataValue: () => 1000 }]);
@@ -109,7 +115,9 @@ describe('Analytics Routes', () => {
       const startDate = '2023-01-01';
       const endDate = '2023-01-31';
       BillingAccount.findAll.mockResolvedValue([{ getDataValue: () => 1000 }]);
-      ApiUsage.findOne.mockResolvedValue({ totalTokens: 1000, totalCostCents: 10, requestCount: 100 });
+      ApiUsage.findOne.mockResolvedValue({
+        totalTokens: 1000, totalCostCents: 10, requestCount: 100,
+      });
       ApiUsage.findAll.mockResolvedValue([]);
 
       // Act

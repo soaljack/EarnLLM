@@ -17,7 +17,7 @@ describe('BillingAccount Model', () => {
     };
 
     // This is the mock for the INSTANCE method `update`
-    const mockUpdate = jest.fn().mockImplementation(function (values) {
+    const mockUpdate = jest.fn().mockImplementation(function update(values) {
       Object.assign(this, values);
       return Promise.resolve(this);
     });
