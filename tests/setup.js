@@ -1,3 +1,5 @@
+
+
 /**
  * Global test setup for EarnLLM API tests
  */
@@ -8,8 +10,22 @@ process.env.NODE_ENV = 'test';
 // Import mocks
 const _authMiddlewareMock = require('./mocks/auth.middleware.mock');
 const authHelpersMock = require('./mocks/authHelpers.mock');
+const { sequelize } = require('../src/models');
+const { connectRateLimiter, closeRateLimiter } = require('../src/middleware/rateLimit.middleware');
+const redisMock = require('redis-mock');
 
-// Mock external services
+// Initialize rate limiter with mock client before any tests run
+beforeAll(async () => {
+  const mockRedisClient = redisMock.createClient();
+  // Add properties needed by the application code to the mock client
+  mockRedisClient.isReady = true;
+  mockRedisClient.quit = jest.fn().mockResolvedValue('OK');
+  mockRedisClient.connect = jest.fn().mockResolvedValue();
+  mockRedisClient.on = jest.fn();
+  await connectRateLimiter(mockRedisClient);
+});
+
+
 jest.mock('stripe', () => jest.fn().mockImplementation(() => ({
   customers: {
     create: jest.fn().mockResolvedValue({ id: 'cus_mock123456' }),
@@ -90,3 +106,10 @@ beforeEach(() => {
 
 // Global test timeout
 jest.setTimeout(30000);
+
+// This will run after all tests
+afterAll(async () => {
+  // Close connections to prevent Jest from hanging
+  await sequelize.close();
+  await closeRateLimiter();
+});

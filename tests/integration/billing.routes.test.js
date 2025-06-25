@@ -47,8 +47,7 @@ jest.mock('../../src/config/logger', () => ({
 const app = require('../../app');
 
 describe('Billing Routes', () => {
-  let testUser; let proPlan; let
-    mockBillingAccount;
+  let testUser, proPlan, mockBillingAccount;
 
   beforeEach(() => {
     jest.clearAllMocks();

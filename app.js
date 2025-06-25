@@ -6,6 +6,8 @@ const { sequelize } = require('./src/models');
 const config = require('./src/config');
 const logger = require('./src/config/logger');
 const routes = require('./src/routes');
+const { connectRateLimiter } = require('./src/middleware/rateLimit.middleware');
+const redis = require('redis');
 
 // Initialize express app
 const app = express();
@@ -28,6 +30,11 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', timestamp: new Date() });
 });
 
+// Handle 404 Not Found errors
+app.use((req, res, next) => {
+  next(new ApiError(404, 'Not Found'));
+});
+
 // Convert non-ApiError errors to ApiError
 const { errorConverter, errorHandler } = require('./src/middleware/error');
 
@@ -42,6 +49,12 @@ const startServer = async () => {
     // Sync database models
     await sequelize.sync({ alter: config.env === 'development' });
     logger.info('Database synchronized');
+
+    // Initialize Redis for rate limiting
+    if (config.env !== 'test') {
+      const redisClient = redis.createClient({ url: process.env.REDIS_URL });
+      await connectRateLimiter(redisClient);
+    }
 
     // Start listening
     app.listen(config.port, () => {

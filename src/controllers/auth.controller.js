@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const createError = require('http-errors');
+const ApiError = require('../utils/ApiError');
 const { User, BillingAccount, PricingPlan } = require('../models');
 // Ensure dotenv is configured if process.env variables are used directly here
 // require('dotenv').config(); // Might be needed if JWT_SECRET/EXPIRY are not globally available
@@ -14,7 +14,7 @@ const register = async (req, res, next) => {
     // Check if user already exists
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
-      return next(createError(409, 'User with this email already exists'));
+      return next(new ApiError(409, 'User with this email already exists'));
     }
 
     // Get the free tier pricing plan
@@ -25,7 +25,7 @@ const register = async (req, res, next) => {
     if (!freeTier) {
       // It's good practice to log this server-side as well
       console.error('CRITICAL: Default pricing plan "starter" not found.');
-      return next(createError(500, 'Unable to find default pricing plan. Please contact support.'));
+      return next(new ApiError(500, 'Unable to find default pricing plan. Please contact support.'));
     }
 
     // Create the user
@@ -96,20 +96,20 @@ const login = async (req, res, next) => {
     console.log('LOGIN_DEBUG: User found by findOne in controller:', JSON.stringify(user, null, 2));
 
     if (!user) {
-      return next(createError(401, 'Invalid email or password'));
+      return next(new ApiError(401, 'Invalid email or password'));
     }
 
     // Check if user account is active
     console.log('LOGIN_DEBUG: User isActive in controller:', user.isActive);
     if (!user.isActive) {
-      return next(createError(403, 'Account is inactive'));
+      return next(new ApiError(403, 'Account is inactive'));
     }
 
     // Validate password
     const isPasswordValid = await user.validatePassword(password);
     console.log('LOGIN_DEBUG: isPasswordValid in controller:', isPasswordValid);
     if (!isPasswordValid) {
-      return next(createError(401, 'Invalid email or password'));
+      return next(new ApiError(401, 'Invalid email or password'));
     }
 
     // Update last login timestamp
@@ -164,7 +164,7 @@ const getMe = async (req, res, next) => {
     });
 
     if (!user) {
-      return next(createError(404, 'User not found'));
+      return next(new ApiError(404, 'User not found'));
     }
 
     // Format user response

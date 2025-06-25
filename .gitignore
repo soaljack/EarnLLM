@@ -11,7 +11,7 @@ yarn-error.log*
 
 # Test output
 /coverage
-test-results.json
+# test-results.json
 
 # OS generated files
 .DS_Store

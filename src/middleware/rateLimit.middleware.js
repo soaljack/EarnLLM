@@ -3,12 +3,18 @@ const createError = require('http-errors');
 const redis = require('redis');
 const { ApiUsage, BillingAccount } = require('../models');
 
-let redisClient;
+let redisClient = null;
 
 // Function to initialize and connect the Redis client
-const connectRateLimiter = async () => {
+const connectRateLimiter = async (client = null) => {
+  // If an external client is provided, use it.
+  if (client) {
+    redisClient = client;
+    console.log('External Redis client provided for rate limiting.');
+    return;
+  }
   // Prevent re-connecting if already connected
-  if (redisClient) {
+  if (redisClient && redisClient.isReady) {
     return;
   }
 
