@@ -52,4 +52,9 @@ module.exports = {
     './tests/jest.env.js',
     '<rootDir>/tests/setup.js',
   ],
+
+  moduleNameMapper: {
+    '^redis$': '<rootDir>/tests/__mocks__/redis.js',
+    '^sequelize$': '<rootDir>/tests/__mocks__/sequelize.js',
+  },
 };

@@ -1,7 +1,7 @@
 const actualSequelize = jest.requireActual('sequelize');
 
-// A mock model object that has jest.fn() for all the static methods
-const mockModel = {
+// Factory function to create a new mock model object
+const createMockModel = () => ({
   init: jest.fn(),
   associate: jest.fn(),
   create: jest.fn(),
@@ -11,16 +11,16 @@ const mockModel = {
   count: jest.fn(),
   update: jest.fn(),
   destroy: jest.fn(),
-};
+});
 
-// A mock sequelize instance that returns our mock model
+// A mock sequelize instance that returns a new mock model for each definition
 const mockSequelize = {
-  define: jest.fn(() => mockModel),
+  define: jest.fn(() => createMockModel()),
   authenticate: jest.fn().mockResolvedValue(),
   sync: jest.fn().mockResolvedValue(),
   close: jest.fn().mockResolvedValue(),
   transaction: jest.fn(async (cb) => cb()),
-  model: jest.fn(() => mockModel),
+  model: jest.fn(() => createMockModel()),
 };
 
 // The main Sequelize mock that returns our mock instance
@@ -31,4 +31,8 @@ Sequelize.Op = actualSequelize.Op;
 Sequelize.DataTypes = actualSequelize.DataTypes;
 Sequelize.Model = class Model {}; // A dummy class for `extends Model` to work
 
-module.exports = { Sequelize };
+module.exports = {
+  Sequelize,
+  Op: actualSequelize.Op,
+  DataTypes: actualSequelize.DataTypes,
+};
