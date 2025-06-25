@@ -10,7 +10,10 @@
     "test:coverage": "jest --coverage",
     "test:live": "jest --config=jest.config.live.js --runInBand",
     "test:live:watch": "jest --config=jest.config.live.js --watch",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "seed:pricing-plans": "node scripts/seed-pricing-plans.js",
+    "seed:llm-models": "node scripts/seed-llm-models.js",
+    "seed:dev-user": "node scripts/seed-dev-user.js"
   },
   "keywords": [],
   "author": "",
