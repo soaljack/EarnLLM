@@ -12,6 +12,31 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_DB: earnllm_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:6
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     strategy:
       matrix:
         node-version: [18.x, 20.x]
@@ -38,3 +63,10 @@ jobs:
           NODE_ENV: test
           JWT_SECRET: 'dummy-secret-for-testing'
           FRONTEND_URL: 'http://localhost:3001'
+          DB_HOST: postgres
+          DB_PORT: 5432
+          DB_NAME: earnllm_test
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          REDIS_HOST: redis
+          REDIS_PORT: 6379
