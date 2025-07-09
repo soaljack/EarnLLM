@@ -19,9 +19,9 @@ jest.mock('../../src/models', () => ({
 
 const request = require('supertest');
 const app = require('../../app');
-const authenticateApiKey = require('../../src/middleware/authenticateApiKey');
-const authenticateJWT = require('../../src/middleware/authenticateJWT');
-const requireAdmin = require('../../src/middleware/requireAdmin');
+const authenticateApiKey = require('../../src/middleware/authenticateApiKey.js');
+const authenticateJWT = require('../../src/middleware/authenticateJWT.js');
+const requireAdmin = require('../../src/middleware/requireAdmin.js');
 const { LlmModel, ExternalModel } = require('../../src/models');
 
 describe('Model Routes', () => {

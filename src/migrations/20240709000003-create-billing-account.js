@@ -1,4 +1,3 @@
-'use strict';
 const { DataTypes } = require('sequelize');
 
 module.exports = {
@@ -26,7 +25,7 @@ module.exports = {
           'past_due',
           'canceled',
           'unpaid',
-          'trialing'
+          'trialing',
         ),
         allowNull: true,
       },

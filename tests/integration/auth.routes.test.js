@@ -11,7 +11,7 @@ describe('Authentication Routes', () => {
 
   beforeAll(async () => {
     server = http.createServer(app);
-    await new Promise(resolve => server.listen(resolve));
+    await new Promise((resolve) => server.listen(resolve));
 
     // Initialize rate limiter with mock client
     mockRedisClient.isReady = true;
@@ -19,8 +19,6 @@ describe('Authentication Routes', () => {
     mockRedisClient.connect = jest.fn().mockResolvedValue();
     mockRedisClient.on = jest.fn();
     await connectRateLimiter(mockRedisClient);
-
-
   });
 
   afterAll((done) => {
@@ -40,9 +38,6 @@ describe('Authentication Routes', () => {
     await User.destroy({ where: {} });
   });
 
-
-
-
   describe('POST /v1/auth/register', () => {
     const registerPayload = {
       email: 'integration-test@example.com',
@@ -50,10 +45,6 @@ describe('Authentication Routes', () => {
       firstName: 'Integration',
       lastName: 'Test',
     };
-
-
-
-
 
     it('should register a new user, create a billing account, and return a token', async () => {
       // Act: Send the registration request

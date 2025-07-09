@@ -21,9 +21,9 @@ const logger = winston.createLogger({
       stderrLevels: ['error'],
       format: winston.format.combine(
         config.env === 'development' ? winston.format.colorize() : winston.format.uncolorize(),
-        winston.format.printf(({ level, message, timestamp, traceId }) => {
-          return `${timestamp} ${level}: ${traceId ? `[${traceId}] ` : ''}${message}`;
-        }),
+        winston.format.printf(({
+          level, message, timestamp, traceId,
+        }) => `${timestamp} ${level}: ${traceId ? `[${traceId}] ` : ''}${message}`),
       ),
     }),
   ],

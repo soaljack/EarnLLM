@@ -1,5 +1,3 @@
-'use strict';
-
 module.exports = {
   up: async ({ context }) => {
     const { queryInterface, Sequelize } = context;

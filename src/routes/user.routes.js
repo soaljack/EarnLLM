@@ -1,7 +1,9 @@
 const express = require('express');
 const createError = require('http-errors');
 const { Op } = require('sequelize');
-const { User, ApiUsage, LlmModel, PricingPlan, BillingAccount, sequelize, ApiKey } = require('../db/sequelize');
+const {
+  User, ApiUsage, LlmModel, PricingPlan, BillingAccount, sequelize, ApiKey,
+} = require('../db/sequelize');
 const { authenticateJWT } = require('../middleware/jwt.middleware');
 const { requireAdmin } = require('../middleware/admin.middleware');
 const validate = require('../middleware/validate.middleware');
@@ -22,11 +24,17 @@ const getCurrentUserUsage = async (req, res, next) => {
       default: startDate = new Date(now.getFullYear(), now.getMonth(), 1); break;
     }
     const [usage, modelUsage, totals] = await Promise.all([
-      ApiUsage.findAll({ where: { UserId: req.user.id, createdAt: { [Op.gte]: startDate } }, attributes: [[sequelize.fn('DATE', sequelize.col('createdAt')), 'date'], [sequelize.fn('SUM', sequelize.col('totalTokens')), 'totalTokens'], [sequelize.fn('SUM', sequelize.col('totalCostCents')), 'totalCostCents'], [sequelize.fn('COUNT', sequelize.col('id')), 'requestCount']], group: [sequelize.fn('DATE', sequelize.col('createdAt'))], order: [[sequelize.fn('DATE', sequelize.col('createdAt')), 'ASC']] }),
-      ApiUsage.findAll({ where: { UserId: req.user.id, createdAt: { [Op.gte]: startDate } }, attributes: ['LlmModelId', 'externalModelId', [sequelize.fn('SUM', sequelize.col('totalTokens')), 'totalTokens'], [sequelize.fn('SUM', sequelize.col('totalCostCents')), 'totalCostCents'], [sequelize.fn('COUNT', sequelize.col('id')), 'requestCount']], group: ['LlmModelId', 'externalModelId'], include: [{ model: LlmModel, attributes: ['name', 'provider', 'modelId'] }] }),
+      ApiUsage.findAll({
+        where: { UserId: req.user.id, createdAt: { [Op.gte]: startDate } }, attributes: [[sequelize.fn('DATE', sequelize.col('createdAt')), 'date'], [sequelize.fn('SUM', sequelize.col('totalTokens')), 'totalTokens'], [sequelize.fn('SUM', sequelize.col('totalCostCents')), 'totalCostCents'], [sequelize.fn('COUNT', sequelize.col('id')), 'requestCount']], group: [sequelize.fn('DATE', sequelize.col('createdAt'))], order: [[sequelize.fn('DATE', sequelize.col('createdAt')), 'ASC']],
+      }),
+      ApiUsage.findAll({
+        where: { UserId: req.user.id, createdAt: { [Op.gte]: startDate } }, attributes: ['LlmModelId', 'externalModelId', [sequelize.fn('SUM', sequelize.col('totalTokens')), 'totalTokens'], [sequelize.fn('SUM', sequelize.col('totalCostCents')), 'totalCostCents'], [sequelize.fn('COUNT', sequelize.col('id')), 'requestCount']], group: ['LlmModelId', 'externalModelId'], include: [{ model: LlmModel, attributes: ['name', 'provider', 'modelId'] }],
+      }),
       ApiUsage.findOne({ where: { UserId: req.user.id, createdAt: { [Op.gte]: startDate } }, attributes: [[sequelize.fn('SUM', sequelize.col('totalTokens')), 'totalTokens'], [sequelize.fn('SUM', sequelize.col('totalCostCents')), 'totalCostCents'], [sequelize.fn('COUNT', sequelize.col('id')), 'requestCount']], raw: true }),
     ]);
-    res.json({ period, startDate, dailyUsage: usage, modelUsage, totals });
+    res.json({
+      period, startDate, dailyUsage: usage, modelUsage, totals,
+    });
   } catch (error) { next(error); }
 };
 
@@ -44,10 +52,16 @@ const updateCurrentUserProfile = async (req, res, next) => {
 
 const getAllUsers = async (req, res, next) => {
   try {
-    const { page = 1, limit = 20, sortBy = 'createdAt', order = 'DESC', search } = req.query;
+    const {
+      page = 1, limit = 20, sortBy = 'createdAt', order = 'DESC', search,
+    } = req.query;
     const where = search ? { [Op.or]: [{ email: { [Op.iLike]: `%${search}%` } }, { firstName: { [Op.iLike]: `%${search}%` } }, { lastName: { [Op.iLike]: `%${search}%` } }] } : {};
-    const { count, rows } = await User.findAndCountAll({ where, limit, offset: (page - 1) * limit, order: [[sortBy, order]], attributes: { exclude: ['password'] } });
-    res.json({ totalUsers: count, users: rows, totalPages: Math.ceil(count / limit), currentPage: parseInt(page, 10) });
+    const { count, rows } = await User.findAndCountAll({
+      where, limit, offset: (page - 1) * limit, order: [[sortBy, order]], attributes: { exclude: ['password'] },
+    });
+    res.json({
+      totalUsers: count, users: rows, totalPages: Math.ceil(count / limit), currentPage: parseInt(page, 10),
+    });
   } catch (error) { next(error); }
 };
 
@@ -67,14 +81,18 @@ const updateUserById = async (req, res, next) => {
   const t = await sequelize.transaction();
   try {
     const { id } = req.params;
-    const { firstName, lastName, companyName, email, role, isActive, pricingPlanId, creditBalance, subscriptionStatus } = req.body;
+    const {
+      firstName, lastName, companyName, email, role, isActive, pricingPlanId, creditBalance, subscriptionStatus,
+    } = req.body;
     const user = await User.findByPk(id, { include: [BillingAccount], transaction: t });
     if (!user) { await t.rollback(); return next(createError(404, 'User not found')); }
     if (email && email !== user.email) {
       const existingUser = await User.findOne({ where: { email }, transaction: t });
       if (existingUser) { await t.rollback(); return next(createError(409, 'Email already in use')); }
     }
-    await user.update({ firstName, lastName, companyName, email, role, isActive, PricingPlanId: pricingPlanId }, { transaction: t });
+    await user.update({
+      firstName, lastName, companyName, email, role, isActive, PricingPlanId: pricingPlanId,
+    }, { transaction: t });
     if (user.BillingAccount) {
       await user.BillingAccount.update({ creditBalance, subscriptionStatus }, { transaction: t });
     } else if (creditBalance !== undefined || subscriptionStatus !== undefined) {

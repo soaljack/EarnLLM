@@ -27,7 +27,7 @@ jest.mock('../../src/models', () => ({
 const request = require('supertest');
 const { Op } = require('sequelize');
 const app = require('../../app');
-const authMiddleware = require('../../src/middleware/auth.middleware');
+const authMiddleware = require('../../src/middleware/auth.middleware.js');
 const {
   User, ApiUsage, BillingAccount, ApiKey,
 } = require('../../src/models');

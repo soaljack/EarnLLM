@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
 const ApiError = require('../utils/ApiError');
-const { User, BillingAccount, PricingPlan, sequelize } = require('../db/sequelize');
+const {
+  User, BillingAccount, PricingPlan, sequelize,
+} = require('../db/sequelize');
 
 /**
  * Register a new user.

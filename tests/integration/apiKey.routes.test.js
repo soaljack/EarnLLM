@@ -9,14 +9,16 @@ const { connectRateLimiter, closeRateLimiter } = require('../../src/middleware/r
 const { mockRedisClient } = require('../setup');
 
 describe('API Key Routes', () => {
-  const { User, ApiKey, BillingAccount, PricingPlan } = global.models;
+  const {
+    User, ApiKey, BillingAccount, PricingPlan,
+  } = global.models;
   let server;
   let testUser;
   let authToken;
 
   beforeAll(async () => {
     server = http.createServer(app);
-    await new Promise(resolve => server.listen(resolve));
+    await new Promise((resolve) => server.listen(resolve));
 
     // Mock Redis
     mockRedisClient.isReady = true;
@@ -29,7 +31,7 @@ describe('API Key Routes', () => {
   beforeEach(async () => {
     // Find the starter plan created in global setup
     const starterPlan = await PricingPlan.findOne({ where: { code: 'starter' } });
-    
+
     // Create a fresh user for each test to avoid unique constraint errors
     const uniqueEmail = `apikey-test-${Date.now()}@example.com`;
     testUser = await User.create({
@@ -108,7 +110,9 @@ describe('API Key Routes', () => {
 
   describe('POST /v1/api-keys/:id/revoke', () => {
     it('should revoke an active API key', async () => {
-      const apiKey = await ApiKey.create({ name: 'Key to Revoke', UserId: testUser.id, key: 'key_to_revoke_hashed', isActive: true });
+      const apiKey = await ApiKey.create({
+        name: 'Key to Revoke', UserId: testUser.id, key: 'key_to_revoke_hashed', isActive: true,
+      });
 
       await request(server)
         .post(`/v1/api-keys/${apiKey.id}/revoke`)

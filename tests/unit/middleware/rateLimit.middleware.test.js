@@ -10,6 +10,7 @@ jest.unmock('../../../src/middleware/rateLimit.middleware');
 process.env.REDIS_URL = 'redis://localhost:6379'; // Set dummy URL for Redis
 
 const mockSequelizeModels = require('../../mocks/sequelize.mock');
+
 jest.mock('../../../src/models', () => mockSequelizeModels);
 
 const mockTransaction = {

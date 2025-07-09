@@ -10,7 +10,6 @@ const { mockAuthenticateJWT, mockAuthenticateApiKey } = require('./mocks/auth.mi
 const authHelpersMock = require('./mocks/authHelpers.mock');
 const { connectRateLimiter, closeRateLimiter } = require('../src/middleware/rateLimit.middleware');
 
-
 // Mock the logger to suppress info/warn messages during tests
 jest.mock('../src/config/logger', () => ({
   info: jest.fn(),
@@ -19,7 +18,7 @@ jest.mock('../src/config/logger', () => ({
   debug: jest.fn(),
 }));
 
-const { authenticateJWT, authenticateApiKey, requireAdmin } = require('../tests/mocks/auth.middleware.mock');
+const { authenticateJWT, authenticateApiKey, requireAdmin } = require('./mocks/auth.middleware.mock');
 
 jest.mock('../src/middleware/jwt.middleware.js', () => ({
   authenticateJWT,
@@ -48,23 +47,21 @@ mockRedisClient.zAdd = jest.fn().mockImplementation(async (key, members) => {
     sortedSets[key] = [];
   }
   const membersArray = Array.isArray(members) ? members : [members];
-  membersArray.forEach(member => {
-    sortedSets[key] = sortedSets[key].filter(m => m.value !== member.value);
+  membersArray.forEach((member) => {
+    sortedSets[key] = sortedSets[key].filter((m) => m.value !== member.value);
     sortedSets[key].push(member);
   });
   return membersArray.length;
 });
 
-mockRedisClient.zCard = jest.fn().mockImplementation(async (key) => {
-  return sortedSets[key] ? sortedSets[key].length : 0;
-});
+mockRedisClient.zCard = jest.fn().mockImplementation(async (key) => (sortedSets[key] ? sortedSets[key].length : 0));
 
 mockRedisClient.zRemRangeByScore = jest.fn().mockImplementation(async (key, min, max) => {
   if (!sortedSets[key]) {
     return 0;
   }
   const originalLength = sortedSets[key].length;
-  sortedSets[key] = sortedSets[key].filter(m => m.score < min || m.score > max);
+  sortedSets[key] = sortedSets[key].filter((m) => m.score < min || m.score > max);
   return originalLength - sortedSets[key].length;
 });
 
@@ -88,8 +85,6 @@ mockRedisClient.multi = jest.fn(() => {
 });
 
 module.exports = { mockRedisClient };
-
-
 
 jest.mock('stripe', () => jest.fn().mockImplementation(() => ({
   customers: {
@@ -176,5 +171,3 @@ beforeEach(() => {
 
 // Global test timeout
 jest.setTimeout(30000);
-
-

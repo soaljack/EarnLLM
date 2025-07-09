@@ -110,15 +110,13 @@ const updateApiKeyById = async (userId, apiKeyId, updateData) => {
  * @returns {Promise<void>}
  */
 const deleteApiKeyById = async (userId, apiKeyId) => {
-  const deleted = await sequelize.transaction(async (t) => {
-    return ApiKey.destroy({
-      where: {
-        id: apiKeyId,
-        UserId: userId,
-      },
-      transaction: t,
-    });
-  });
+  const deleted = await sequelize.transaction(async (t) => ApiKey.destroy({
+    where: {
+      id: apiKeyId,
+      UserId: userId,
+    },
+    transaction: t,
+  }));
 
   if (!deleted) {
     throw createError(404, 'API key not found');

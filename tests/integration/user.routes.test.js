@@ -28,9 +28,9 @@ jest.mock('../../src/models', () => ({
 
 const request = require('supertest');
 const app = require('../../app');
-const authenticateJWT = require('../../src/middleware/authenticateJWT');
-const requireAdmin = require('../../src/middleware/requireAdmin');
-const authenticateApiKey = require('../../src/middleware/authenticateApiKey');
+const authenticateJWT = require('../../src/middleware/authenticateJWT.js');
+const requireAdmin = require('../../src/middleware/requireAdmin.js');
+const authenticateApiKey = require('../../src/middleware/authenticateApiKey.js');
 const { User, ApiUsage } = require('../../src/models');
 
 describe('User Routes', () => {

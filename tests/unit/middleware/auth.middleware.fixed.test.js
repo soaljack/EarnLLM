@@ -42,7 +42,7 @@ const {
   authenticateApiKey,
   requireAdmin,
   requireApiPermission,
-} = require('../../../src/middleware/auth.middleware');
+} = require('../../../src/middleware/auth.middleware.js');
 
 const { User, ApiKey, PricingPlan } = require('../../../src/models'); // These will be mocked versions
 

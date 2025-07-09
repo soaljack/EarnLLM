@@ -1,9 +1,9 @@
-const app = require('./app');
 const { Sequelize } = require('sequelize');
+const redis = require('redis');
+const app = require('./app');
 const initModels = require('./src/models');
 const config = require('./src/config');
 const logger = require('./src/config/logger');
-const redis = require('redis');
 const { connectRateLimiter } = require('./src/middleware/rateLimit.middleware');
 
 // Initialize Sequelize and models

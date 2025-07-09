@@ -18,10 +18,12 @@ jest.mock('../../../src/models', () => ({
   },
 }));
 
+const jwt = require('jsonwebtoken');
 const authService = require('../../../src/services/auth.service');
 const ApiError = require('../../../src/utils/ApiError');
-const jwt = require('jsonwebtoken');
-const { User, BillingAccount, PricingPlan, sequelize } = require('../../../src/models');
+const {
+  User, BillingAccount, PricingPlan, sequelize,
+} = require('../../../src/models');
 
 describe('Auth Service', () => {
   let mockTransaction;

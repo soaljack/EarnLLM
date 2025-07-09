@@ -84,7 +84,7 @@ describe('User Service', () => {
       User.findByPk.mockResolvedValue(null);
 
       await expect(userService.getUserProfile(userId)).rejects.toThrow(
-        new ApiError(404, 'User not found')
+        new ApiError(404, 'User not found'),
       );
     });
   });
