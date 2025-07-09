@@ -1,15 +1,14 @@
-const { Model, DataTypes } = require('sequelize');
+module.exports = (sequelize, Sequelize) => {
+  const { Model, DataTypes } = Sequelize;
 
-module.exports = (sequelize) => {
   class BillingAccount extends Model {
     /**
-     * Helper method for defining associations.
-     * This method is not a part of Sequelize lifecycle.
-     * The `models/index` file will call this method automatically.
+     * Defines associations for the BillingAccount model.
+     * @param {object} models - The models object containing all initialized models.
      */
     static associate(models) {
-      BillingAccount.belongsTo(models.User, { foreignKey: 'userId' });
-      BillingAccount.belongsTo(models.PricingPlan, { foreignKey: 'pricingPlanId' });
+      BillingAccount.belongsTo(models.User, { foreignKey: 'UserId' });
+      BillingAccount.belongsTo(models.PricingPlan, { foreignKey: 'PricingPlanId' });
     }
   }
 

@@ -8,8 +8,9 @@ const {
   ApiKey,
   BillingAccount,
   PricingPlan,
-} = require('../models');
-const { authenticateJWT, requireAdmin } = require('../middleware/auth.middleware');
+} = require('../db/sequelize');
+const { authenticateJWT } = require('../middleware/jwt.middleware');
+const { requireAdmin } = require('../middleware/admin.middleware');
 
 const router = express.Router();
 

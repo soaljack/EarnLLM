@@ -1,10 +1,8 @@
 // Mock dependencies to be fully self-contained BEFORE app import.
-jest.mock('../../src/middleware/auth.middleware', () => ({
-  authenticateJWT: jest.fn(),
-  requireAdmin: jest.fn(),
-  authenticateApiKey: jest.fn(),
-  requireApiPermission: jest.fn(),
-}));
+jest.mock('../../src/middleware/authenticateJWT');
+jest.mock('../../src/middleware/requireAdmin');
+jest.mock('../../src/middleware/authenticateApiKey');
+jest.mock('../../src/middleware/requireApiPermission');
 
 jest.mock('../../src/models', () => ({
   sequelize: {
@@ -30,7 +28,9 @@ jest.mock('../../src/models', () => ({
 
 const request = require('supertest');
 const app = require('../../app');
-const authMiddleware = require('../../src/middleware/auth.middleware');
+const authenticateJWT = require('../../src/middleware/authenticateJWT');
+const requireAdmin = require('../../src/middleware/requireAdmin');
+const authenticateApiKey = require('../../src/middleware/authenticateApiKey');
 const { User, ApiUsage } = require('../../src/models');
 
 describe('User Routes', () => {
@@ -79,7 +79,7 @@ describe('User Routes', () => {
       isAdmin: true,
     };
 
-    authMiddleware.requireAdmin.mockImplementation((req, res, next) => {
+    requireAdmin.mockImplementation((req, res, next) => {
       if (req.user && req.user.isAdmin) {
         next();
       } else {
@@ -90,7 +90,7 @@ describe('User Routes', () => {
 
   describe('Standard User Routes', () => {
     beforeEach(() => {
-      authMiddleware.authenticateJWT.mockImplementation((req, res, next) => {
+      authenticateJWT.mockImplementation((req, res, next) => {
         req.user = testUser; // Use the realistic mock
         return next();
       });
@@ -160,7 +160,7 @@ describe('User Routes', () => {
 
   describe('Admin Routes', () => {
     beforeEach(() => {
-      authMiddleware.authenticateJWT.mockImplementation((req, res, next) => {
+      authenticateJWT.mockImplementation((req, res, next) => {
         req.user = adminUser;
         return next();
       });
@@ -206,7 +206,7 @@ describe('User Routes', () => {
     });
 
     it('GET /api/users - should be forbidden for a non-admin user', async () => {
-      authMiddleware.authenticateJWT.mockImplementation((req, res, next) => {
+      authenticateJWT.mockImplementation((req, res, next) => {
         req.user = testUser;
         return next();
       });

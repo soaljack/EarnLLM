@@ -1,62 +1,64 @@
 const express = require('express');
-
-const { authenticateJWT } = require('../middleware/auth.middleware');
 const { createPublicRateLimiter } = require('../middleware/rateLimit.middleware');
-require('dotenv').config();
-const {
-  register, login, getMe, refreshToken, logout,
-} = require('../controllers/auth.controller');
+const { authenticateJWT } = require('../middleware/jwt.middleware');
+const validate = require('../middleware/validate.middleware');
+const { registerSchema, loginSchema } = require('../validators/auth.validator');
+const authService = require('../services/auth.service');
+const userService = require('../services/user.service');
 
 const router = express.Router();
 
-// Apply a strict rate limit to registration to prevent abuse
+// --- Controllers ---
+const register = async (req, res, next) => {
+  try {
+    const result = await authService.register(req.body);
+    res.status(201).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const login = async (req, res, next) => {
+  try {
+    const result = await authService.login(req.body);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getMe = async (req, res, next) => {
+  try {
+    const userProfile = await userService.getUserProfile(req.user.id);
+    res.json(userProfile);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const refreshToken = (req, res) => {
+  const result = authService.refreshToken(req.user);
+  res.json(result);
+};
+
+const logout = (req, res) => {
+  res.json({ message: 'Logout successful.' });
+};
+
+// --- Rate Limiters ---
 const registerLimiter = createPublicRateLimiter({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 5, // 5 requests per hour per IP
-  message: 'Too many accounts created from this IP, please try again after an hour.',
+  windowMs: 60 * 60 * 1000, max: 5, message: 'Too many accounts created from this IP.',
 });
 
-/**
- * @route POST /api/auth/register
- * @desc Register a new user
- * @access Public
- */
-router.post('/register', registerLimiter, register);
-
-// Apply a rate limit to login to prevent brute-force attacks
 const loginLimiter = createPublicRateLimiter({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // 10 requests per 15 minutes per IP
-  message: 'Too many login attempts from this IP, please try again after 15 minutes.',
-  skipSuccessfulRequests: true, // Don't count successful attempts
+  windowMs: 15 * 60 * 1000, max: 10, message: 'Too many login attempts from this IP.',
 });
 
-/**
- * @route POST /api/auth/login
- * @desc Login user and return JWT token
- * @access Public
- */
-router.post('/login', loginLimiter, login);
-
-/**
- * @route GET /api/auth/me
- * @desc Get current user profile
- * @access Private
- */
+// --- Routes ---
+router.post('/register', registerLimiter, validate(registerSchema), register);
+router.post('/login', loginLimiter, validate(loginSchema), login);
 router.get('/me', authenticateJWT, getMe);
-
-/**
- * @route POST /api/auth/refresh-token
- * @desc Refresh JWT token
- * @access Private
- */
 router.post('/refresh-token', authenticateJWT, refreshToken);
-
-/**
- * @route POST /api/auth/logout
- * @desc Logout user (client-side token deletion)
- * @access Private
- */
 router.post('/logout', authenticateJWT, logout);
 
 module.exports = router;

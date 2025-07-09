@@ -1,62 +1,29 @@
 const { Sequelize } = require('sequelize');
-require('dotenv').config();
 
-// Initialize Sequelize with database connection parameters
-const sequelize = new Sequelize(
-  process.env.DB_NAME,
-  process.env.DB_USER,
-  process.env.DB_PASSWORD,
-  {
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT,
-    dialect: 'postgres',
-    logging: process.env.NODE_ENV === 'development' ? console.log : false,
-    pool: {
-      max: 5,
-      min: 0,
-      acquire: 30000,
-      idle: 10000,
-    },
-  },
-);
+// This function now accepts a sequelize instance, making the models portable
+const initModels = (sequelize) => {
+  const db = {};
 
-// Import models
-const User = require('./user')(sequelize);
-const ApiKey = require('./apiKey')(sequelize);
-const LlmModel = require('./llmModel')(sequelize);
-const PricingPlan = require('./pricingPlan')(sequelize);
-const BillingAccount = require('./billingAccount')(sequelize);
-const ApiUsage = require('./apiUsage')(sequelize);
-const ExternalModel = require('./externalModel')(sequelize);
+  db.Sequelize = Sequelize;
+  db.sequelize = sequelize;
 
-// Define associations
-User.hasMany(ApiKey);
-ApiKey.belongsTo(User);
+  // Import models and initialize them with the provided sequelize instance
+  db.User = require('./user')(sequelize, Sequelize);
+  db.ApiKey = require('./apiKey')(sequelize, Sequelize);
+  db.LlmModel = require('./llmModel')(sequelize, Sequelize);
+  db.PricingPlan = require('./pricingPlan')(sequelize, Sequelize);
+  db.BillingAccount = require('./billingAccount')(sequelize, Sequelize);
+  db.ApiUsage = require('./apiUsage')(sequelize, Sequelize);
+  db.ExternalModel = require('./externalModel')(sequelize, Sequelize);
 
-User.hasOne(BillingAccount);
-BillingAccount.belongsTo(User);
+  // Define associations
+  Object.keys(db).forEach((modelName) => {
+    if (db[modelName].associate) {
+      db[modelName].associate(db);
+    }
+  });
 
-PricingPlan.hasMany(User);
-User.belongsTo(PricingPlan);
-
-User.hasMany(ApiUsage);
-ApiUsage.belongsTo(User);
-
-LlmModel.hasMany(ApiUsage);
-ApiUsage.belongsTo(LlmModel);
-
-User.hasMany(ExternalModel);
-ExternalModel.belongsTo(User);
-
-const db = {
-  sequelize,
-  User,
-  ApiKey,
-  LlmModel,
-  PricingPlan,
-  BillingAccount,
-  ApiUsage,
-  ExternalModel,
+  return db;
 };
 
-module.exports = db;
+module.exports = initModels;

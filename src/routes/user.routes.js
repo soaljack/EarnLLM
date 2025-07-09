@@ -1,49 +1,96 @@
 const express = require('express');
-
-const { authenticateJWT, requireAdmin } = require('../middleware/auth.middleware');
+const createError = require('http-errors');
+const { Op } = require('sequelize');
+const { User, ApiUsage, LlmModel, PricingPlan, BillingAccount, sequelize, ApiKey } = require('../db/sequelize');
+const { authenticateJWT } = require('../middleware/jwt.middleware');
+const { requireAdmin } = require('../middleware/admin.middleware');
+const validate = require('../middleware/validate.middleware');
+const { updateCurrentUserSchema, updateUserAsAdminSchema } = require('../validators/user.validator');
 
 const router = express.Router();
-const {
-  getCurrentUserUsage, updateCurrentUserProfile, getAllUsers, getUserById, updateUserById,
-} = require('../controllers/user.controller');
 
-/**
- * @route GET /api/users/me/usage
- * @desc Get current user's API usage statistics
- * @access Private
- */
+// --- Controllers ---
+const getCurrentUserUsage = async (req, res, next) => {
+  try {
+    const { period = 'month' } = req.query;
+    let startDate;
+    const now = new Date();
+    switch (period) {
+      case 'day': startDate = new Date(now.setHours(0, 0, 0, 0)); break;
+      case 'week': startDate = new Date(now.setDate(now.getDate() - now.getDay())); startDate.setHours(0, 0, 0, 0); break;
+      case 'year': startDate = new Date(now.setMonth(0, 1)); startDate.setHours(0, 0, 0, 0); break;
+      default: startDate = new Date(now.getFullYear(), now.getMonth(), 1); break;
+    }
+    const [usage, modelUsage, totals] = await Promise.all([
+      ApiUsage.findAll({ where: { UserId: req.user.id, createdAt: { [Op.gte]: startDate } }, attributes: [[sequelize.fn('DATE', sequelize.col('createdAt')), 'date'], [sequelize.fn('SUM', sequelize.col('totalTokens')), 'totalTokens'], [sequelize.fn('SUM', sequelize.col('totalCostCents')), 'totalCostCents'], [sequelize.fn('COUNT', sequelize.col('id')), 'requestCount']], group: [sequelize.fn('DATE', sequelize.col('createdAt'))], order: [[sequelize.fn('DATE', sequelize.col('createdAt')), 'ASC']] }),
+      ApiUsage.findAll({ where: { UserId: req.user.id, createdAt: { [Op.gte]: startDate } }, attributes: ['LlmModelId', 'externalModelId', [sequelize.fn('SUM', sequelize.col('totalTokens')), 'totalTokens'], [sequelize.fn('SUM', sequelize.col('totalCostCents')), 'totalCostCents'], [sequelize.fn('COUNT', sequelize.col('id')), 'requestCount']], group: ['LlmModelId', 'externalModelId'], include: [{ model: LlmModel, attributes: ['name', 'provider', 'modelId'] }] }),
+      ApiUsage.findOne({ where: { UserId: req.user.id, createdAt: { [Op.gte]: startDate } }, attributes: [[sequelize.fn('SUM', sequelize.col('totalTokens')), 'totalTokens'], [sequelize.fn('SUM', sequelize.col('totalCostCents')), 'totalCostCents'], [sequelize.fn('COUNT', sequelize.col('id')), 'requestCount']], raw: true }),
+    ]);
+    res.json({ period, startDate, dailyUsage: usage, modelUsage, totals });
+  } catch (error) { next(error); }
+};
+
+const updateCurrentUserProfile = async (req, res, next) => {
+  try {
+    const { firstName, lastName, companyName } = req.body;
+    const user = await User.findByPk(req.user.id);
+    if (!user) { return next(createError(404, 'User not found')); }
+    const updatedUser = await user.update({ firstName, lastName, companyName });
+    const userJSON = updatedUser.toJSON();
+    delete userJSON.password;
+    res.json({ message: 'Profile updated successfully', user: userJSON });
+  } catch (error) { next(error); }
+};
+
+const getAllUsers = async (req, res, next) => {
+  try {
+    const { page = 1, limit = 20, sortBy = 'createdAt', order = 'DESC', search } = req.query;
+    const where = search ? { [Op.or]: [{ email: { [Op.iLike]: `%${search}%` } }, { firstName: { [Op.iLike]: `%${search}%` } }, { lastName: { [Op.iLike]: `%${search}%` } }] } : {};
+    const { count, rows } = await User.findAndCountAll({ where, limit, offset: (page - 1) * limit, order: [[sortBy, order]], attributes: { exclude: ['password'] } });
+    res.json({ totalUsers: count, users: rows, totalPages: Math.ceil(count / limit), currentPage: parseInt(page, 10) });
+  } catch (error) { next(error); }
+};
+
+const getUserById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const [user, usageSummary] = await Promise.all([
+      User.findByPk(id, { attributes: { exclude: ['password'] }, include: [PricingPlan, BillingAccount, { model: ApiKey, attributes: ['id', 'name', 'prefix', 'isActive', 'lastUsedAt', 'expiresAt'] }] }),
+      ApiUsage.findOne({ where: { UserId: id, createdAt: { [Op.gte]: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } }, attributes: [[sequelize.fn('SUM', sequelize.col('totalTokens')), 'totalTokens'], [sequelize.fn('SUM', sequelize.col('totalCostCents')), 'totalCostCents'], [sequelize.fn('COUNT', sequelize.col('id')), 'requestCount']], raw: true }),
+    ]);
+    if (!user) { return next(createError(404, 'User not found')); }
+    res.json({ user, usageSummary });
+  } catch (error) { next(error); }
+};
+
+const updateUserById = async (req, res, next) => {
+  const t = await sequelize.transaction();
+  try {
+    const { id } = req.params;
+    const { firstName, lastName, companyName, email, role, isActive, pricingPlanId, creditBalance, subscriptionStatus } = req.body;
+    const user = await User.findByPk(id, { include: [BillingAccount], transaction: t });
+    if (!user) { await t.rollback(); return next(createError(404, 'User not found')); }
+    if (email && email !== user.email) {
+      const existingUser = await User.findOne({ where: { email }, transaction: t });
+      if (existingUser) { await t.rollback(); return next(createError(409, 'Email already in use')); }
+    }
+    await user.update({ firstName, lastName, companyName, email, role, isActive, PricingPlanId: pricingPlanId }, { transaction: t });
+    if (user.BillingAccount) {
+      await user.BillingAccount.update({ creditBalance, subscriptionStatus }, { transaction: t });
+    } else if (creditBalance !== undefined || subscriptionStatus !== undefined) {
+      await BillingAccount.create({ UserId: user.id, creditBalance, subscriptionStatus }, { transaction: t });
+    }
+    await t.commit();
+    const reloadedUser = await User.findByPk(id, { attributes: { exclude: ['password'] }, include: [PricingPlan, BillingAccount] });
+    res.json({ message: 'User updated successfully', user: reloadedUser });
+  } catch (error) { await t.rollback(); next(error); }
+};
+
+// --- Routes ---
 router.get('/me/usage', authenticateJWT, getCurrentUserUsage);
-
-/**
- * @route PUT /api/users/me
- * @desc Update current user's profile
- * @access Private
- */
-router.put('/me', authenticateJWT, updateCurrentUserProfile);
-
-/**
- * ADMIN ROUTES
- */
-
-/**
- * @route GET /api/users
- * @desc Get all users (admin only)
- * @access Admin
- */
+router.put('/me', authenticateJWT, validate(updateCurrentUserSchema), updateCurrentUserProfile);
 router.get('/', authenticateJWT, requireAdmin, getAllUsers);
-
-/**
- * @route GET /api/users/:id
- * @desc Get user by ID (admin only)
- * @access Admin
- */
 router.get('/:id', authenticateJWT, requireAdmin, getUserById);
-
-/**
- * @route PUT /api/users/:id
- * @desc Update user (admin only)
- * @access Admin
- */
-router.put('/:id', authenticateJWT, requireAdmin, updateUserById);
+router.put('/:id', authenticateJWT, requireAdmin, validate(updateUserAsAdminSchema), updateUserById);
 
 module.exports = router;

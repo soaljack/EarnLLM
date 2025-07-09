@@ -1,9 +1,7 @@
 // Mock dependencies first to ensure they are applied before any other imports
-jest.mock('../../src/middleware/auth.middleware', () => ({
-  authenticateApiKey: jest.fn(),
-  authenticateJWT: jest.fn(),
-  requireAdmin: jest.fn(),
-}));
+jest.mock('../../src/middleware/authenticateApiKey');
+jest.mock('../../src/middleware/authenticateJWT');
+jest.mock('../../src/middleware/requireAdmin');
 
 jest.mock('../../src/models', () => ({
   LlmModel: {
@@ -21,7 +19,9 @@ jest.mock('../../src/models', () => ({
 
 const request = require('supertest');
 const app = require('../../app');
-const authMiddleware = require('../../src/middleware/auth.middleware');
+const authenticateApiKey = require('../../src/middleware/authenticateApiKey');
+const authenticateJWT = require('../../src/middleware/authenticateJWT');
+const requireAdmin = require('../../src/middleware/requireAdmin');
 const { LlmModel, ExternalModel } = require('../../src/models');
 
 describe('Model Routes', () => {
@@ -69,7 +69,7 @@ describe('Model Routes', () => {
   describe('GET /api/models', () => {
     it('should return system and user-specific external models', async () => {
       // Arrange
-      authMiddleware.authenticateApiKey.mockImplementation((req, res, next) => {
+      authenticateApiKey.mockImplementation((req, res, next) => {
         req.user = testUser;
         next();
       });
@@ -95,11 +95,11 @@ describe('Model Routes', () => {
   describe('Admin: System Model Management', () => {
     beforeEach(() => {
       // For all admin tests, authenticate as admin and allow access
-      authMiddleware.authenticateJWT.mockImplementation((req, res, next) => {
+      authenticateJWT.mockImplementation((req, res, next) => {
         req.user = adminUser;
         next();
       });
-      authMiddleware.requireAdmin.mockImplementation((req, res, next) => next());
+      requireAdmin.mockImplementation((req, res, next) => next());
     });
 
     it('POST /api/models - should create a new system model', async () => {
@@ -142,7 +142,7 @@ describe('Model Routes', () => {
   describe('User: External Model (BYOM) Management', () => {
     beforeEach(() => {
       // For all user BYOM tests, authenticate as a standard user
-      authMiddleware.authenticateJWT.mockImplementation((req, res, next) => {
+      authenticateJWT.mockImplementation((req, res, next) => {
         req.user = testUser;
         next();
       });

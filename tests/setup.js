@@ -8,8 +8,8 @@ require('dotenv').config();
 const redisMock = require('redis-mock');
 const { mockAuthenticateJWT, mockAuthenticateApiKey } = require('./mocks/auth.middleware.mock');
 const authHelpersMock = require('./mocks/authHelpers.mock');
-const { sequelize } = require('../src/models');
 const { connectRateLimiter, closeRateLimiter } = require('../src/middleware/rateLimit.middleware');
+
 
 // Mock the logger to suppress info/warn messages during tests
 jest.mock('../src/config/logger', () => ({
@@ -19,26 +19,77 @@ jest.mock('../src/config/logger', () => ({
   debug: jest.fn(),
 }));
 
-jest.mock('../src/middleware/auth.middleware', () => ({
-  authenticateJWT: mockAuthenticateJWT,
-  authenticateApiKey: mockAuthenticateApiKey,
+const { authenticateJWT, authenticateApiKey, requireAdmin } = require('../tests/mocks/auth.middleware.mock');
+
+jest.mock('../src/middleware/jwt.middleware.js', () => ({
+  authenticateJWT,
+}));
+
+jest.mock('../src/middleware/apiKey.middleware.js', () => ({
+  authenticateApiKey,
+}));
+
+jest.mock('../src/middleware/admin.middleware.js', () => ({
+  requireAdmin,
+}));
+
+jest.mock('../src/middleware/permission.middleware.js', () => ({
+  requireApiPermission: () => (req, res, next) => next(),
 }));
 
 // Centralized mock for the rate limiter's Redis client
 const mockRedisClient = redisMock.createClient();
 
-// Initialize rate limiter with mock client before any tests run
-beforeAll(async () => {
-  // Add properties needed by the application code to the mock client
-  mockRedisClient.isReady = true;
-  mockRedisClient.quit = jest.fn().mockResolvedValue('OK');
-  mockRedisClient.connect = jest.fn().mockResolvedValue();
-  mockRedisClient.on = jest.fn();
-  mockRedisClient.zRemRangeByScore = jest.fn().mockResolvedValue(0);
-  mockRedisClient.zAdd = jest.fn().mockResolvedValue(1);
-  mockRedisClient.zCard = jest.fn().mockResolvedValue(0);
-  await connectRateLimiter(mockRedisClient);
+// In-memory store for sorted sets used by the rate limiter mock
+const sortedSets = {};
+
+mockRedisClient.zAdd = jest.fn().mockImplementation(async (key, members) => {
+  if (!sortedSets[key]) {
+    sortedSets[key] = [];
+  }
+  const membersArray = Array.isArray(members) ? members : [members];
+  membersArray.forEach(member => {
+    sortedSets[key] = sortedSets[key].filter(m => m.value !== member.value);
+    sortedSets[key].push(member);
+  });
+  return membersArray.length;
 });
+
+mockRedisClient.zCard = jest.fn().mockImplementation(async (key) => {
+  return sortedSets[key] ? sortedSets[key].length : 0;
+});
+
+mockRedisClient.zRemRangeByScore = jest.fn().mockImplementation(async (key, min, max) => {
+  if (!sortedSets[key]) {
+    return 0;
+  }
+  const originalLength = sortedSets[key].length;
+  sortedSets[key] = sortedSets[key].filter(m => m.score < min || m.score > max);
+  return originalLength - sortedSets[key].length;
+});
+
+mockRedisClient.expire = jest.fn().mockResolvedValue(1);
+
+// Mock the .multi() and .exec() for transactions
+mockRedisClient.multi = jest.fn(() => {
+  const multi = {
+    zRemRangeByScore: jest.fn().mockReturnThis(),
+    zAdd: jest.fn().mockReturnThis(),
+    zCard: jest.fn().mockReturnThis(),
+    expire: jest.fn().mockReturnThis(),
+    exec: jest.fn().mockResolvedValue([
+      0, // zRemRangeByScore result
+      1, // zAdd result
+      1, // zCard result
+      1, // expire result
+    ]),
+  };
+  return multi;
+});
+
+module.exports = { mockRedisClient };
+
+
 
 jest.mock('stripe', () => jest.fn().mockImplementation(() => ({
   customers: {
@@ -111,7 +162,12 @@ jest.mock('openai', () => ({
 
 // Mock authentication helpers
 jest.doMock('../src/utils/auth', () => authHelpersMock, { virtual: true });
-jest.doMock('bcryptjs', () => authHelpersMock.bcrypt, { virtual: true });
+
+// Mock bcryptjs to avoid issues with native addons in tests
+jest.mock('bcryptjs', () => ({
+  hash: jest.fn().mockImplementation(async (plainPassword, _salt) => `${plainPassword}_hashed`),
+  compare: jest.fn().mockImplementation(async (plainPassword, hashedPassword) => `${plainPassword}_hashed` === hashedPassword),
+}));
 
 // Reset mocks between tests
 beforeEach(() => {
@@ -121,9 +177,4 @@ beforeEach(() => {
 // Global test timeout
 jest.setTimeout(30000);
 
-// This will run after all tests
-afterAll(async () => {
-  // Close connections to prevent Jest from hanging
-  await sequelize.close();
-  await closeRateLimiter();
-});
+

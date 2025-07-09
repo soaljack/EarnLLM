@@ -14,19 +14,23 @@ EarnLLM is a powerful, self-hostable API service designed to help developers mon
 - **Bring Your Own Model (BYOM)**: Integrate and offer access to your own hosted models alongside standard ones like GPT-4.
 - **Extensible**: Built with a modular architecture using Node.js, Express, and Sequelize.
 
+## Project Status
+
+**Stable**. The core architecture has been refactored for stability and scalability. The integration test suite is robust and all database models are now managed by Sequelize migrations, ensuring a reliable and reproducible setup.
+
 ## Getting Started
 
-This project is designed for developers who want to run their own LLM monetization service. For detailed instructions on how to set up your local development environment, clone the repository, and seed your database, please see our comprehensive developer's guide:
+This project is designed for developers who want to run their own LLM monetization service. For detailed instructions on how to set up your local development environment, clone the repository, and run the database migrations, please see our comprehensive developer's guide:
 
 **[➡️ Developer's Guide](./docs/DEVELOPMENT.md)**
 
 ## Tech Stack
 
 - **Backend**: Node.js, Express.js
-- **Database**: PostgreSQL with Sequelize ORM
-- **Rate Limiting**: Redis
-- **Testing**: Jest
-- **Authentication**: Custom API Key strategy
+- **Database**: PostgreSQL with Sequelize ORM and a full migration suite.
+- **Rate Limiting**: Redis (with in-memory fallback for development).
+- **Testing**: Jest, with a stable integration test suite running against a real test database.
+- **Authentication**: JWT for user sessions and a custom API Key strategy for service access.
 
 ## Contributing
 

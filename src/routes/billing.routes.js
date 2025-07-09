@@ -6,8 +6,8 @@ const {
   PricingPlan,
   User,
   sequelize,
-} = require('../models');
-const authMiddleware = require('../middleware/auth.middleware');
+} = require('../db/sequelize');
+const { authenticateApiKey } = require('../middleware/apiKey.middleware');
 
 const router = express.Router();
 
@@ -16,7 +16,7 @@ const router = express.Router();
  * @desc Get all available pricing plans
  * @access Private
  */
-router.get('/plans', authMiddleware.authenticateApiKey, async (req, res, next) => {
+router.get('/plans', authenticateApiKey, async (req, res, next) => {
   try {
     // Get all active pricing plans
     const plans = await PricingPlan.findAll({
@@ -40,7 +40,7 @@ router.get('/plans', authMiddleware.authenticateApiKey, async (req, res, next) =
  * @desc Get user's current subscription details
  * @access Private
  */
-router.get('/subscription', authMiddleware.authenticateApiKey, async (req, res, next) => {
+router.get('/subscription', authenticateApiKey, async (req, res, next) => {
   try {
     // Get user's billing account and pricing plan
     const [billingAccount, pricingPlan] = await Promise.all([
@@ -88,7 +88,7 @@ router.get('/subscription', authMiddleware.authenticateApiKey, async (req, res, 
  * @desc Create a Stripe checkout session for subscription
  * @access Private
  */
-router.post('/checkout-session', authMiddleware.authenticateApiKey, async (req, res, next) => {
+router.post('/checkout-session', authenticateApiKey, async (req, res, next) => {
   try {
     const { planId } = req.body;
 
@@ -158,7 +158,7 @@ router.post('/checkout-session', authMiddleware.authenticateApiKey, async (req, 
  * @desc Create a Stripe customer portal session
  * @access Private
  */
-router.post('/portal-session', authMiddleware.authenticateApiKey, async (req, res, next) => {
+router.post('/portal-session', authenticateApiKey, async (req, res, next) => {
   try {
     const billingAccount = await BillingAccount.findOne({
       where: { UserId: req.user.id },
@@ -187,7 +187,7 @@ router.post('/portal-session', authMiddleware.authenticateApiKey, async (req, re
  * @desc Create a payment intent to add credits to account
  * @access Private
  */
-router.post('/add-credits', authMiddleware.authenticateApiKey, async (req, res, next) => {
+router.post('/add-credits', authenticateApiKey, async (req, res, next) => {
   try {
     const amountNum = Number(req.body.amountUsd);
 

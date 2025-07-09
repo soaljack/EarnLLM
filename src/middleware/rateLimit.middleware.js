@@ -1,7 +1,7 @@
 const { Op } = require('sequelize');
 const createError = require('http-errors');
 const redis = require('redis');
-const { ApiUsage, BillingAccount } = require('../models');
+const { ApiUsage, BillingAccount } = require('../db/sequelize');
 
 let redisClient = null;
 
@@ -65,13 +65,12 @@ if (process.env.NODE_ENV !== 'test') {
  */
 const rateLimitByPlan = async (req, res, next) => {
   try {
-    // Skip rate limiting if no user or API key (should never happen with auth middleware)
-    if (!req.user) {
+    const { user } = req;
+    if (!user) {
       return next();
     }
 
-    // The user's pricing plan is already loaded by the auth middleware
-    const pricingPlan = req.user.PricingPlan;
+    const { PricingPlan: pricingPlan } = user;
     if (!pricingPlan) {
       return next(createError(500, 'Pricing plan not found.'));
     }
@@ -81,7 +80,7 @@ const rateLimitByPlan = async (req, res, next) => {
       return next();
     }
 
-    const userId = req.user.id;
+    const userId = user.id;
     const key = `ratelimit:${userId}`;
     const now = Date.now();
     const windowMs = 60000; // 1 minute window
@@ -89,11 +88,16 @@ const rateLimitByPlan = async (req, res, next) => {
     let requestCount;
 
     if (redisClient && redisClient.isReady) {
-      // Redis-based rate limiting
-      await redisClient.zRemRangeByScore(key, 0, now - windowMs);
-      await redisClient.zAdd(key, { score: now, value: now.toString() });
-      await redisClient.expire(key, 60); // Expire after 60 seconds
-      requestCount = await redisClient.zCard(key);
+      // Use a Redis transaction to ensure atomicity
+      const transaction = redisClient.multi();
+      transaction.zRemRangeByScore(key, 0, now - windowMs);
+      transaction.zAdd(key, { score: now, value: now.toString() });
+      transaction.zCard(key);
+      transaction.expire(key, 60);
+
+      const results = await transaction.exec();
+      // The result of zCard is the 3rd command in the transaction
+      requestCount = results[2];
     } else {
       // In-memory rate limiting
       if (!inMemoryStore.requests[key]) {
@@ -112,11 +116,8 @@ const rateLimitByPlan = async (req, res, next) => {
 
     // Check if the rate limit has been exceeded
     if (requestCount > pricingPlan.requestsPerMinute) {
-      return res.status(429).json({
-        error: 'Too Many Requests',
-        message: `Rate limit of ${pricingPlan.requestsPerMinute} requests per minute exceeded`,
-        retryAfter: Math.ceil(windowMs / 1000), // Retry after 1 minute (in seconds)
-      });
+      res.setHeader('Retry-After', Math.ceil(windowMs / 1000)); // Standard header for 429
+      return next(createError(429, `Rate limit of ${pricingPlan.requestsPerMinute} requests per minute exceeded`));
     }
 
     // Set rate limit headers
@@ -127,8 +128,8 @@ const rateLimitByPlan = async (req, res, next) => {
     return next();
   } catch (error) {
     console.error('Rate limiting error:', error);
-    // Pass the error to the global error handler
-    return next(error);
+    // Fail open: If the rate limiter has an error, allow the request to proceed.
+    return next();
   }
 };
 
@@ -138,12 +139,12 @@ const rateLimitByPlan = async (req, res, next) => {
  */
 const checkDailyQuota = async (req, res, next) => {
   try {
-    if (!req.user) {
+    const { user } = req;
+    if (!user) {
       return next();
     }
 
-    // The user's pricing plan is already loaded by the auth middleware
-    const pricingPlan = req.user.PricingPlan;
+    const { PricingPlan: pricingPlan } = user;
     if (!pricingPlan) {
       return next(createError(500, 'Pricing plan not found.'));
     }
@@ -153,7 +154,7 @@ const checkDailyQuota = async (req, res, next) => {
       return next();
     }
 
-    const userId = req.user.id;
+    const userId = user.id;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -169,11 +170,7 @@ const checkDailyQuota = async (req, res, next) => {
 
     // Check if daily quota is exceeded
     if (dailyUsageCount >= pricingPlan.requestsPerDay) {
-      return res.status(429).json({
-        error: 'Quota Exceeded',
-        message: `Daily request quota of ${pricingPlan.requestsPerDay} requests exceeded`,
-        resetAt: new Date(today.getTime() + 86400000).toISOString(), // Next day
-      });
+      return next(createError(429, `You have exceeded your daily request quota of ${pricingPlan.requestsPerDay}. Please try again tomorrow.`));
     }
 
     // Set quota headers
@@ -193,13 +190,14 @@ const checkDailyQuota = async (req, res, next) => {
  */
 const checkTokenAllowance = async (req, res, next) => {
   try {
-    if (!req.user) {
+    const { user } = req;
+    if (!user) {
       return next();
     }
 
     // Get user's pricing plan and billing account
-    const pricingPlan = req.user.PricingPlan;
-    const billingAccount = await BillingAccount.findOne({ where: { UserId: req.user.id } });
+    const { PricingPlan: pricingPlan } = user;
+    const billingAccount = await BillingAccount.findOne({ where: { UserId: user.id } });
 
     if (!pricingPlan || !billingAccount) {
       return next(createError(500, 'Pricing plan or billing account not found.'));
@@ -217,12 +215,7 @@ const checkTokenAllowance = async (req, res, next) => {
         return next();
       }
 
-      return res.status(402).json({
-        error: 'Token Allowance Exceeded',
-        message: 'Monthly token allowance exceeded. Please upgrade your plan or add credits.',
-        currentUsage: billingAccount.tokenUsageThisMonth,
-        allowance: pricingPlan.tokenAllowance,
-      });
+      return next(createError(402, 'You have exceeded your token allowance. Please upgrade your plan or add credits.'));
     }
 
     return next();
@@ -237,6 +230,8 @@ const checkTokenAllowance = async (req, res, next) => {
 const closeRateLimiter = async () => {
   if (redisClient && redisClient.isReady) {
     await redisClient.quit();
+    // Ensure the client state is updated to prevent reuse
+    redisClient.isReady = false;
     redisClient = null;
     console.log('Redis client disconnected.');
   }

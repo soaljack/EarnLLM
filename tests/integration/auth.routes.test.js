@@ -1,163 +1,171 @@
-// Mock dependencies first to ensure they are applied before any other imports
-jest.mock('../../src/middleware/auth.middleware', () => ({
-  authenticateJWT: jest.fn(),
-  requireAdmin: jest.fn(),
-  authenticateApiKey: jest.fn(),
-}));
-
-jest.mock('../../src/models', () => ({
-  User: {
-    findOne: jest.fn(),
-    create: jest.fn(),
-  },
-  PricingPlan: {
-    findOne: jest.fn(),
-  },
-  BillingAccount: {
-    create: jest.fn(),
-  },
-  sequelize: {
-    // Provide a self-contained transaction mock that simulates the transaction callback pattern.
-    transaction: jest.fn().mockImplementation(async (callback) => {
-      const mockTransaction = {
-        commit: jest.fn(),
-        rollback: jest.fn(),
-      };
-      // The callback passed to a transaction is executed with the transaction object.
-      return callback(mockTransaction);
-    }),
-  },
-}));
-
-// Mock the jsonwebtoken library
-jest.mock('jsonwebtoken');
-
 const request = require('supertest');
-const jwt = require('jsonwebtoken');
+const http = require('http');
 const app = require('../../app');
-const {
-  User, PricingPlan, BillingAccount,
-} = require('../../src/models');
+
+const { connectRateLimiter, closeRateLimiter } = require('../../src/middleware/rateLimit.middleware');
+const { mockRedisClient } = require('../setup');
 
 describe('Authentication Routes', () => {
-  beforeEach(() => {
-    // Clear all mocks before each test to ensure a clean state without test pollution.
-    jest.resetAllMocks();
+  const { User, BillingAccount, PricingPlan } = global.models;
+  let server;
 
-    // Mock JWT to return a consistent token for all tests.
-    jwt.sign.mockReturnValue('mock-jwt-token');
+  beforeAll(async () => {
+    server = http.createServer(app);
+    await new Promise(resolve => server.listen(resolve));
+
+    // Initialize rate limiter with mock client
+    mockRedisClient.isReady = true;
+    mockRedisClient.quit = jest.fn().mockResolvedValue('OK');
+    mockRedisClient.connect = jest.fn().mockResolvedValue();
+    mockRedisClient.on = jest.fn();
+    await connectRateLimiter(mockRedisClient);
+
+
   });
 
-  describe('POST /api/auth/register', () => {
+  afterAll((done) => {
+    if (server) {
+      server.close(async () => {
+        await closeRateLimiter();
+        done();
+      });
+    } else {
+      done();
+    }
+  });
+
+  // Clean up users and billing accounts after each test
+  afterEach(async () => {
+    await BillingAccount.destroy({ where: {} });
+    await User.destroy({ where: {} });
+  });
+
+
+
+
+  describe('POST /v1/auth/register', () => {
     const registerPayload = {
-      email: 'register-test@example.com',
+      email: 'integration-test@example.com',
       password: 'Password123!',
-      firstName: 'Register',
-      lastName: 'User',
+      firstName: 'Integration',
+      lastName: 'Test',
     };
 
+
+
+
+
     it('should register a new user, create a billing account, and return a token', async () => {
-      const mockNewUser = {
-        id: 1,
-        ...registerPayload,
-        toJSON: () => ({ ...registerPayload, id: 1 }),
-      };
-      const mockStarterPlan = { id: 1, code: 'starter' };
+      // Act: Send the registration request
+      const response = await request(server)
+        .post('/v1/auth/register')
+        .send(registerPayload)
+        .expect(201);
 
-      // Arrange: Set up mock return values for this specific test case.
-      User.findOne.mockResolvedValue(null); // Simulate user does not exist.
-      PricingPlan.findOne.mockResolvedValue(mockStarterPlan);
-      User.create.mockResolvedValue(mockNewUser);
-      BillingAccount.create.mockResolvedValue({ id: 1, UserId: 1 });
-
-      // Act: Send the registration request.
-      const response = await request(app).post('/api/auth/register').send(registerPayload).expect(201);
-
-      // Assert: Verify that the correct functions were called and the response is correct.
-      expect(User.findOne).toHaveBeenCalledWith({ where: { email: registerPayload.email } });
-      expect(PricingPlan.findOne).toHaveBeenCalledWith({ where: { code: 'starter' } });
-      expect(User.create).toHaveBeenCalled();
-      expect(BillingAccount.create).toHaveBeenCalled();
+      // Assert: Check that the response contains the user and a token
+      expect(response.body.user).toBeDefined();
+      expect(response.body.token).toBeDefined();
       expect(response.body.user.email).toBe(registerPayload.email);
-      expect(response.body.token).toBe('mock-jwt-token');
+
+      // Assert: Verify that the user and billing account were created in the database
+      const user = await User.findOne({ where: { email: registerPayload.email } });
+      expect(user).not.toBeNull();
+
+      const billingAccount = await BillingAccount.findOne({ where: { UserId: user.id } });
+      expect(billingAccount).not.toBeNull();
     });
 
     it('should return 409 if user already exists', async () => {
-      User.findOne.mockResolvedValue({ id: 1 }); // Simulate user exists.
-      await request(app).post('/api/auth/register').send(registerPayload).expect(409);
+      // Arrange: Create a user with the same email before the test
+      await User.create(registerPayload);
+
+      // Act & Assert: Attempt to register again and expect a conflict error
+      await request(server)
+        .post('/v1/auth/register')
+        .send(registerPayload)
+        .expect(409);
     });
 
     it('should return 400 for missing required fields', async () => {
-      // Arrange: Simulate a validation error when required fields are missing.
-      const validationError = new Error('Validation error: password cannot be null');
-      validationError.name = 'SequelizeValidationError'; // Mimic Sequelize's error type.
-      validationError.errors = [{ message: 'Password cannot be null' }]; // The error handler expects an 'errors' array.
-      User.create.mockRejectedValue(validationError);
+      // Arrange: Create an incomplete payload
+      const { password, ...incompletePayload } = registerPayload;
 
-      // Also need to mock the preceding calls to prevent other errors.
-      User.findOne.mockResolvedValue(null);
-      PricingPlan.findOne.mockResolvedValue({ id: 1, code: 'starter' });
+      // Act & Assert: Send the incomplete payload and expect a bad request error
+      await request(server)
+        .post('/v1/auth/register')
+        .send(incompletePayload)
+        .expect(400);
+    });
 
-      // Act & Assert: Send a payload without a password and expect a 400 error.
-      const { password: _password, ...invalidPayload } = registerPayload;
-      await request(app).post('/api/auth/register').send(invalidPayload).expect(400);
+    it('should return 500 if the default pricing plan is not found', async () => {
+      // Arrange: Ensure no pricing plans exist
+      await PricingPlan.destroy({ where: {} });
 
-      const incompletePayload = { ...registerPayload };
-      delete incompletePayload.password;
-
-      // Act & Assert
-      await request(app).post('/api/auth/register').send(incompletePayload).expect(400);
+      // Act & Assert: Attempt to register and expect a server error
+      await request(server)
+        .post('/v1/auth/register')
+        .send(registerPayload)
+        .expect(500);
     });
   });
 
-  describe('POST /api/auth/login', () => {
-    const loginPayload = { email: 'login-test@example.com', password: 'Password123!' };
-    let mockUser;
+  describe('POST /v1/auth/login', () => {
+    const loginPayload = {
+      email: 'test-login@example.com',
+      password: 'password123',
+    };
 
-    beforeEach(() => {
-      // Create a fresh mock user for each login test.
-      mockUser = {
-        id: 1,
-        isActive: true,
-        validatePassword: jest.fn(),
-        update: jest.fn(), // Mock the update method called in the controller
-        PricingPlan: { id: 1, name: 'Starter', code: 'starter' }, // Mock the nested PricingPlan object
-        toJSON: () => ({ id: 1, email: loginPayload.email }),
-      };
-    });
-
-    it('should log in a valid user and return a token', async () => {
-      // Arrange
-      mockUser.validatePassword.mockResolvedValue(true);
-      User.findOne.mockResolvedValue(mockUser);
-
-      // Act
-      const response = await request(app).post('/api/auth/login').send(loginPayload).expect(200);
-
-      // Assert
-      expect(User.findOne).toHaveBeenCalledWith({
-        where: { email: loginPayload.email },
-        include: [{ model: PricingPlan }],
+    beforeEach(async () => {
+      // Create a user to test login
+      const hashedPassword = await require('bcryptjs').hash(loginPayload.password, 10);
+      await User.create({
+        email: loginPayload.email,
+        password: hashedPassword,
+        firstName: 'Login',
+        lastName: 'Test',
+        isVerified: true, // Assume user is verified for login tests
       });
-      expect(mockUser.validatePassword).toHaveBeenCalledWith(loginPayload.password);
-      expect(response.body.token).toBe('mock-jwt-token');
     });
 
-    it('should return 401 for an incorrect password', async () => {
-      mockUser.validatePassword.mockResolvedValue(false);
-      User.findOne.mockResolvedValue(mockUser);
-      await request(app).post('/api/auth/login').send(loginPayload).expect(401);
+    it('should log in a registered user and return a token', async () => {
+      const response = await request(server)
+        .post('/v1/auth/login')
+        .send(loginPayload)
+        .expect(200);
+
+      expect(response.body.user).toBeDefined();
+      expect(response.body.token).toBeDefined();
+      expect(response.body.user.email).toBe(loginPayload.email);
+    });
+
+    it('should return 401 for incorrect password', async () => {
+      await request(server)
+        .post('/v1/auth/login')
+        .send({ ...loginPayload, password: 'wrongpassword' })
+        .expect(401);
     });
 
     it('should return 401 for a non-existent user', async () => {
-      User.findOne.mockResolvedValue(null);
-      await request(app).post('/api/auth/login').send(loginPayload).expect(401);
+      await request(server)
+        .post('/v1/auth/login')
+        .send({ ...loginPayload, email: 'nouser@example.com' })
+        .expect(401);
     });
 
-    it('should return 403 for an inactive user', async () => {
-      mockUser.isActive = false;
-      User.findOne.mockResolvedValue(mockUser);
-      await request(app).post('/api/auth/login').send(loginPayload).expect(403);
+    it('should return 400 for missing email', async () => {
+      const { email, ...payload } = loginPayload;
+      await request(server)
+        .post('/v1/auth/login')
+        .send(payload)
+        .expect(400);
+    });
+
+    it('should return 400 for missing password', async () => {
+      const { password, ...payload } = loginPayload;
+      await request(server)
+        .post('/v1/auth/login')
+        .send(payload)
+        .expect(400);
     });
   });
 });

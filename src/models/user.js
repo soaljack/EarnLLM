@@ -1,9 +1,21 @@
 const bcrypt = require('bcryptjs');
 
-const { Model, DataTypes } = require('sequelize');
+module.exports = (sequelize, Sequelize) => {
+  const { Model, DataTypes } = Sequelize;
 
-module.exports = (sequelize) => {
   class User extends Model {
+    /**
+     * Defines associations for the User model.
+     * @param {object} models - The models object containing all initialized models.
+     */
+    static associate(models) {
+      User.hasMany(models.ApiKey, { foreignKey: 'UserId' });
+      User.hasOne(models.BillingAccount, { foreignKey: 'UserId' });
+      User.belongsTo(models.PricingPlan, { foreignKey: 'PricingPlanId' });
+      User.hasMany(models.ApiUsage, { foreignKey: 'UserId' });
+      User.hasMany(models.ExternalModel, { foreignKey: 'UserId' });
+    }
+
     /**
      * Instance method to validate a password against the user's stored hash.
      * @param {string} password - The password to validate.

@@ -1,181 +1,197 @@
-// Mock dependencies first to ensure they are applied before any other imports
-jest.mock('../../src/middleware/auth.middleware', () => ({
-  authenticateJWT: jest.fn(),
-  requireAdmin: jest.fn(),
-  authenticateApiKey: jest.fn(),
-}));
-
-jest.mock('../../src/models', () => ({
-  ApiKey: {
-    create: jest.fn(),
-    findAll: jest.fn(),
-    findOne: jest.fn(),
-    destroy: jest.fn(),
-    generateKey: jest.fn(() => ({
-      prefix: 'sk-test-mock',
-      fullKey: 'sk-test-mock-key-string',
-      hashedKey: 'hashed-mock-key',
-    })),
-  },
-  sequelize: {
-    transaction: jest.fn(),
-  },
-}));
-
 const request = require('supertest');
+const http = require('http');
+const { Op } = require('sequelize');
+const jwt = require('jsonwebtoken');
 const app = require('../../app');
-const authMiddleware = require('../../src/middleware/auth.middleware');
-const { ApiKey, sequelize } = require('../../src/models');
+const config = require('../../src/config');
+
+const { connectRateLimiter, closeRateLimiter } = require('../../src/middleware/rateLimit.middleware');
+const { mockRedisClient } = require('../setup');
 
 describe('API Key Routes', () => {
+  const { User, ApiKey, BillingAccount, PricingPlan } = global.models;
+  let server;
   let testUser;
-  let testKey;
+  let authToken;
 
-  beforeEach(() => {
-    jest.clearAllMocks();
+  beforeAll(async () => {
+    server = http.createServer(app);
+    await new Promise(resolve => server.listen(resolve));
 
-    // --- Mock Data Setup ---
-    testUser = { id: 1, email: 'apikey-test@example.com' };
-    testKey = {
-      id: 101,
-      name: 'My Test Key',
-      UserId: testUser.id,
-      isActive: true,
-      // Simulate a Sequelize instance method
-      update: jest.fn(async function update(data) {
-        Object.assign(this, data);
-        return this;
-      }),
-    };
-
-    // --- Mock Implementation Setup ---
-    authMiddleware.authenticateJWT.mockImplementation((req, res, next) => {
-      req.user = testUser;
-      next();
-    });
+    // Mock Redis
+    mockRedisClient.isReady = true;
+    mockRedisClient.quit = jest.fn().mockResolvedValue('OK');
+    mockRedisClient.connect = jest.fn().mockResolvedValue();
+    mockRedisClient.on = jest.fn();
+    await connectRateLimiter(mockRedisClient);
   });
 
-  describe('POST /api/api-keys', () => {
-    it('should create a new API key', async () => {
-      // Arrange
-      const keyName = 'My New Test Key';
-      const mockApiKey = {
-        id: 'mock-api-key-id',
-        name: keyName,
-        key: 'sk-test-mock-key-string',
-        prefix: 'sk-test-mock',
-        permissions: ['chat:completion', 'embed'],
-        expiresAt: null,
-        createdAt: new Date().toISOString(),
-      };
-      ApiKey.create.mockResolvedValue(mockApiKey);
+  beforeEach(async () => {
+    // Find the starter plan created in global setup
+    const starterPlan = await PricingPlan.findOne({ where: { code: 'starter' } });
+    
+    // Create a fresh user for each test to avoid unique constraint errors
+    const uniqueEmail = `apikey-test-${Date.now()}@example.com`;
+    testUser = await User.create({
+      email: uniqueEmail,
+      password: 'password123',
+      role: 'user',
+      PricingPlanId: starterPlan.id,
+    });
+    await BillingAccount.create({ UserId: testUser.id, PricingPlanId: starterPlan.id });
+    authToken = jwt.sign({ id: testUser.id, role: testUser.role }, config.jwt.secret, { expiresIn: '1h' });
+  });
 
-      // Act
-      const response = await request(app)
-        .post('/api/api-keys')
+  afterEach(async () => {
+    // Clean up all data created for the test
+    await ApiKey.destroy({ where: {} });
+    await BillingAccount.destroy({ where: {} });
+    await User.destroy({ where: {} });
+  });
+
+  afterAll((done) => {
+    if (server) {
+      server.close(async () => {
+        await closeRateLimiter();
+        done();
+      });
+    } else {
+      done();
+    }
+  });
+
+  describe('POST /v1/api-keys', () => {
+    it('should create a new API key and return it', async () => {
+      const keyName = 'My Test Key';
+      const res = await request(server)
+        .post('/v1/api-keys')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({ name: keyName })
         .expect(201);
 
-      // Assert
-      expect(ApiKey.create).toHaveBeenCalledWith(
-        expect.objectContaining({ name: keyName, UserId: testUser.id }),
-      );
-      expect(response.body).toHaveProperty('key');
-      expect(response.body.key).toBe('sk-test-mock-key-string');
-      expect(response.body.name).toBe(keyName);
+      expect(res.body).toHaveProperty('key');
+      expect(res.body.key).toMatch(/^sk_[a-zA-Z0-9]{64}$/);
+      expect(res.body.name).toBe(keyName);
+      expect(res.body.prefix).toBe(res.body.key.substring(0, 10));
+
+      const dbKey = await ApiKey.findOne({ where: { UserId: testUser.id } });
+      expect(dbKey).not.toBeNull();
+      expect(dbKey.name).toBe(keyName);
     });
 
     it('should return 400 if name is missing', async () => {
-      // Act & Assert
-      await request(app).post('/api/api-keys').send({}).expect(400);
-      expect(ApiKey.create).not.toHaveBeenCalled();
+      await request(server)
+        .post('/v1/api-keys')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({})
+        .expect(400);
     });
   });
 
-  describe('GET /api/api-keys', () => {
-    it("should list the user's API keys", async () => {
-      // Arrange
-      ApiKey.findAll.mockResolvedValue([testKey]);
+  describe('GET /v1/api-keys', () => {
+    it('should retrieve all API keys for the user', async () => {
+      await ApiKey.create({ name: 'Key 1', UserId: testUser.id, key: 'key1_hashed' });
+      await ApiKey.create({ name: 'Key 2', UserId: testUser.id, key: 'key2_hashed' });
 
-      // Act
-      const response = await request(app).get('/api/api-keys').expect(200);
-
-      // Assert
-      expect(ApiKey.findAll).toHaveBeenCalledWith({
-        where: { UserId: testUser.id },
-        attributes: [
-          'id',
-          'name',
-          'prefix',
-          'isActive',
-          'lastUsedAt',
-          'expiresAt',
-          'permissions',
-          'createdAt',
-        ],
-      });
-      expect(response.body).toBeInstanceOf(Array);
-      expect(response.body.length).toBe(1);
-      expect(response.body[0].name).toBe('My Test Key');
-    });
-  });
-
-  describe('POST /api/api-keys/:id/revoke', () => {
-    it('should revoke an active API key', async () => {
-      // Arrange
-      const mockTransaction = { commit: jest.fn(), rollback: jest.fn() };
-      sequelize.transaction.mockResolvedValue(mockTransaction);
-      ApiKey.findOne.mockResolvedValue(testKey);
-
-      // Act
-      const response = await request(app)
-        .post(`/api/api-keys/${testKey.id}/revoke`)
+      const res = await request(server)
+        .get('/v1/api-keys')
+        .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
-      // Assert
-      expect(sequelize.transaction).toHaveBeenCalled();
-      expect(ApiKey.findOne).toHaveBeenCalledWith({
-        where: { id: testKey.id.toString(), UserId: testUser.id },
-        transaction: mockTransaction,
-      });
-      expect(testKey.update).toHaveBeenCalledWith(
-        { isActive: false },
-        { transaction: mockTransaction },
-      );
-      expect(mockTransaction.commit).toHaveBeenCalled();
-      expect(response.body.message).toBe('API key revoked successfully');
+      expect(res.body).toBeInstanceOf(Array);
+      expect(res.body.length).toBe(2);
+      expect(res.body[0].name).toBe('Key 1');
+      expect(res.body[1].name).toBe('Key 2');
+      expect(res.body[0]).not.toHaveProperty('key'); // Full key should not be returned
+    });
+  });
+
+  describe('POST /v1/api-keys/:id/revoke', () => {
+    it('should revoke an active API key', async () => {
+      const apiKey = await ApiKey.create({ name: 'Key to Revoke', UserId: testUser.id, key: 'key_to_revoke_hashed', isActive: true });
+
+      await request(server)
+        .post(`/v1/api-keys/${apiKey.id}/revoke`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+
+      const revokedKey = await ApiKey.findByPk(apiKey.id);
+      expect(revokedKey.isActive).toBe(false);
     });
 
     it('should return 404 for a non-existent key', async () => {
-      // Arrange
-      ApiKey.findOne.mockResolvedValue(null);
-      // Act & Assert
-      await request(app).post('/api/api-keys/999999/revoke').expect(404);
+      await request(server)
+        .post('/v1/api-keys/999999/revoke')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(404);
+    });
+
+    it('should return 404 if key belongs to another user', async () => {
+      const otherUser = await User.create({ email: `other-${Date.now()}@example.com`, password: 'password', PricingPlanId: testUser.PricingPlanId });
+      const apiKey = await ApiKey.create({ name: 'Other User Key', UserId: otherUser.id, key: 'other_key_hashed' });
+
+      await request(server)
+        .post(`/v1/api-keys/${apiKey.id}/revoke`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(404);
     });
   });
 
-  describe('DELETE /api/api-keys/:id', () => {
+  describe('DELETE /v1/api-keys/:id', () => {
     it('should delete an API key', async () => {
-      // Arrange
-      ApiKey.destroy.mockResolvedValue(1);
+      const apiKey = await ApiKey.create({ name: 'Key to Delete', UserId: testUser.id, key: 'key_to_delete_hashed' });
 
-      // Act
-      const response = await request(app)
-        .delete(`/api/api-keys/${testKey.id}`)
+      await request(server)
+        .delete(`/v1/api-keys/${apiKey.id}`)
+        .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
-      // Assert
-      expect(ApiKey.destroy).toHaveBeenCalledWith({
-        where: { id: testKey.id.toString(), UserId: testUser.id },
-      });
-      expect(response.body.message).toBe('API key deleted successfully');
+      const deletedKey = await ApiKey.findByPk(apiKey.id);
+      expect(deletedKey).toBeNull();
     });
 
-    it('should return 404 when deleting a non-existent key', async () => {
-      // Arrange
-      ApiKey.destroy.mockResolvedValue(0);
-      // Act & Assert
-      await request(app).delete('/api/api-keys/999999').expect(404);
+    it('should return 404 for a non-existent key', async () => {
+      await request(server)
+        .delete('/v1/api-keys/999999')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(404);
+    });
+  });
+
+  describe('PUT /v1/api-keys/:id', () => {
+    it('should update the name of an API key', async () => {
+      const apiKey = await ApiKey.create({ name: 'Key to Update', UserId: testUser.id, key: 'key_to_update_hashed' });
+      const newName = 'Updated Key Name';
+
+      const res = await request(server)
+        .put(`/v1/api-keys/${apiKey.id}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ name: newName })
+        .expect(200);
+
+      expect(res.body.name).toBe(newName);
+
+      const updatedKey = await ApiKey.findByPk(apiKey.id);
+      expect(updatedKey.name).toBe(newName);
+    });
+
+    it('should return 404 for a non-existent key', async () => {
+      await request(server)
+        .put('/v1/api-keys/999999')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ name: 'New Name' })
+        .expect(404);
+    });
+
+    it('should return 404 if key belongs to another user', async () => {
+      const otherUser = await User.create({ email: `other-${Date.now()}@example.com`, password: 'password', PricingPlanId: testUser.PricingPlanId });
+      const apiKey = await ApiKey.create({ name: 'Other User Key', UserId: otherUser.id, key: 'other_key_hashed' });
+
+      await request(server)
+        .put(`/v1/api-keys/${apiKey.id}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ name: 'New Name' })
+        .expect(404);
     });
   });
 });

@@ -1,9 +1,17 @@
 const crypto = require('crypto');
 
-const { Model, DataTypes } = require('sequelize');
+module.exports = (sequelize, Sequelize) => {
+  const { Model, DataTypes } = Sequelize;
 
-module.exports = (sequelize) => {
   class ApiKey extends Model {
+    /**
+     * Defines associations for the ApiKey model.
+     * @param {object} models - The models object containing all initialized models.
+     */
+    static associate(models) {
+      ApiKey.belongsTo(models.User, { foreignKey: 'UserId' });
+    }
+
     /**
      * Static method to generate a new API key.
      * This is the single source of truth for key creation.
@@ -38,7 +46,16 @@ module.exports = (sequelize) => {
      */
     verify(keyToVerify) {
       const hashedInputKey = crypto.createHash('sha256').update(keyToVerify).digest('hex');
-      return this.key === hashedInputKey;
+      const storedKeyBuffer = Buffer.from(this.key, 'hex');
+      const inputKeyBuffer = Buffer.from(hashedInputKey, 'hex');
+
+      // Use timingSafeEqual to prevent timing attacks
+      // Ensure buffers are the same length to avoid errors
+      if (storedKeyBuffer.length !== inputKeyBuffer.length) {
+        return false;
+      }
+
+      return crypto.timingSafeEqual(storedKeyBuffer, inputKeyBuffer);
     }
   }
 

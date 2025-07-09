@@ -1,14 +1,13 @@
-const { Model, DataTypes } = require('sequelize');
+module.exports = (sequelize, Sequelize) => {
+  const { Model, DataTypes } = Sequelize;
 
-module.exports = (sequelize) => {
   class ExternalModel extends Model {
     /**
-     * Helper method for defining associations.
-     * This method is not a part of Sequelize lifecycle.
-     * The `models/index` file will call this method automatically.
+     * Defines associations for the ExternalModel model.
+     * @param {object} models - The models object containing all initialized models.
      */
-    static associate(_models) {
-      // define association here if any
+    static associate(models) {
+      ExternalModel.belongsTo(models.User, { foreignKey: 'UserId' });
     }
 
     /**

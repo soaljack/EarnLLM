@@ -1,15 +1,15 @@
-const { Model, DataTypes } = require('sequelize');
+module.exports = (sequelize, Sequelize) => {
+  const { Model, DataTypes } = Sequelize;
 
-module.exports = (sequelize) => {
   class ApiUsage extends Model {
     /**
-     * Helper method for defining associations.
-     * This method is not a part of Sequelize lifecycle.
-     * The `models/index` file will call this method automatically.
+     * Defines associations for the ApiUsage model.
+     * @param {object} models - The models object containing all initialized models.
      */
     static associate(models) {
-      ApiUsage.belongsTo(models.ApiKey, { foreignKey: 'apiKeyId' });
-      ApiUsage.belongsTo(models.LlmModel, { foreignKey: 'llmModelId' });
+      ApiUsage.belongsTo(models.User, { foreignKey: 'UserId' });
+      ApiUsage.belongsTo(models.ApiKey, { foreignKey: 'ApiKeyId' });
+      ApiUsage.belongsTo(models.LlmModel, { foreignKey: 'LlmModelId' });
     }
   }
 

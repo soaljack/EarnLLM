@@ -2,7 +2,7 @@ const createError = require('http-errors');
 const { Op } = require('sequelize');
 const {
   User, ApiUsage, LlmModel, PricingPlan, BillingAccount, sequelize, ApiKey,
-} = require('../models');
+} = require('../db/sequelize');
 
 // Get current user's API usage statistics
 const getCurrentUserUsage = async (req, res, next) => {

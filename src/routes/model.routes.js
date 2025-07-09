@@ -1,7 +1,9 @@
 const express = require('express');
 const createError = require('http-errors');
-const { LlmModel, ExternalModel } = require('../models');
-const { authenticateJWT, authenticateApiKey, requireAdmin } = require('../middleware/auth.middleware');
+const { LlmModel, ExternalModel } = require('../db/sequelize');
+const { authenticateJWT } = require('../middleware/jwt.middleware');
+const { authenticateApiKey } = require('../middleware/apiKey.middleware');
+const { requireAdmin } = require('../middleware/admin.middleware');
 
 const router = express.Router();
 

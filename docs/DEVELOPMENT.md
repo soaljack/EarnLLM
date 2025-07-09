@@ -69,13 +69,19 @@ Before you begin, ensure you have the following installed:
 
     Using your preferred PostgreSQL client (e.g., `psql`, Postico, DBeaver), create a new database with the name you specified in `DB_NAME` (e.g., `earnllm_dev`).
 
-2.  **Database Schema**
+2.  **Run Database Migrations**
 
-    The application uses Sequelize to manage the database schema. When the application starts, it will automatically sync the models and create the necessary tables. No manual migration is needed for initial setup.
+    The project now uses Sequelize migrations to manage the database schema. This ensures the schema is consistent and version-controlled. To build your database schema, run the following command:
+
+    ```bash
+    npm run migrate
+    ```
+
+    This command executes all pending migration files located in `src/migrations` and creates the necessary tables and relationships.
 
 ## Data Seeding
 
-Run the following scripts in order to populate your development database with essential data.
+After the database schema has been created via migrations, you can populate it with essential development data by running the following scripts in order.
 
 1.  **Seed Pricing Plans**
 
@@ -95,7 +101,7 @@ Run the following scripts in order to populate your development database with es
 
 3.  **Seed a Development User**
 
-    This script creates a test user, assigns them the 'Starter' plan, creates a billing account, and generates an API key.
+    This script creates a test user (`test-user@example.com`), assigns them the 'Starter' plan, creates a billing account, and generates an API key.
 
     ```bash
     npm run seed:dev-user

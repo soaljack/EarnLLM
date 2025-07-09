@@ -53,4 +53,10 @@ module.exports = {
     '<rootDir>/tests/setup.js',
   ],
 
+  // A path to a module that runs once before all test suites
+  globalSetup: './tests/jest.globalSetup.js',
+
+  // A path to a module that runs once after all test suites
+  globalTeardown: './tests/jest.globalTeardown.js',
+
 };

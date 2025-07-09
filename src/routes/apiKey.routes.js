@@ -1,6 +1,8 @@
 const express = require('express');
 
-const { authenticateJWT } = require('../middleware/auth.middleware');
+const { authenticateJWT } = require('../middleware/jwt.middleware');
+const validate = require('../middleware/validate.middleware');
+const { createApiKeySchema, updateApiKeySchema } = require('../validators/apiKey.validator');
 
 const router = express.Router();
 const {
@@ -19,14 +21,14 @@ router.get('/', authenticateJWT, getAllApiKeys);
  * @desc Create a new API key
  * @access Private
  */
-router.post('/', authenticateJWT, createApiKey);
+router.post('/', authenticateJWT, validate(createApiKeySchema), createApiKey);
 
 /**
  * @route PUT /api/api-keys/:id
  * @desc Update an API key
  * @access Private
  */
-router.put('/:id', authenticateJWT, updateApiKeyById);
+router.put('/:id', authenticateJWT, validate(updateApiKeySchema), updateApiKeyById);
 
 /**
  * @route DELETE /api/api-keys/:id

@@ -6,17 +6,18 @@ const { Op } = require('sequelize');
 const createError = require('http-errors');
 const {
   sequelize, LlmModel, ExternalModel, ApiUsage,
-} = require('../models');
+} = require('../db/sequelize');
 const {
   rateLimitByPlan,
   checkDailyQuota,
   checkTokenAllowance,
 } = require('../middleware/rateLimit.middleware');
-const authMiddleware = require('../middleware/auth.middleware');
+const { authenticateApiKey } = require('../middleware/apiKey.middleware');
+const { requireApiPermission } = require('../middleware/permission.middleware');
 
 // Wrapper to lazily call the permission middleware, breaking the circular dependency
 const lazyRequireApiPermission = (permission) => (req, res, next) => (
-  authMiddleware.requireApiPermission(permission)(req, res, next)
+  requireApiPermission(permission)(req, res, next)
 );
 
 const router = express.Router();
@@ -54,7 +55,7 @@ const calculateUsageAndCosts = (promptTokens, completionTokens, model, isExterna
  * Apply middleware stack for all LLM routes
  */
 router.use(
-  authMiddleware.authenticateApiKey,
+  authenticateApiKey,
   rateLimitByPlan,
   checkDailyQuota,
   checkTokenAllowance,

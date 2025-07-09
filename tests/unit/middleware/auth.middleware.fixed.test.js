@@ -211,7 +211,7 @@ describe('Authentication Middleware', () => {
   describe('authenticateApiKey', () => {
     test('should authenticate with valid API key', async () => {
       // Setup
-      req.headers['x-api-key'] = 'sk-validprefix-rest-of-key';
+      req.headers.authorization = 'Bearer sk-validprefix-rest-of-key';
 
       const mockUser = {
         id: 1,
@@ -314,7 +314,7 @@ describe('Authentication Middleware', () => {
 
     test('should return 401 when API key format is invalid', async () => {
       // Setup
-      req.headers['x-api-key'] = 'invalid-format';
+      req.headers.authorization = 'Bearer invalid-key-format';
 
       // Execute
       await authenticateApiKey(req, res, next);
@@ -329,7 +329,7 @@ describe('Authentication Middleware', () => {
 
     test('should return 401 when API key is not found', async () => {
       // Setup
-      req.headers['x-api-key'] = 'sk-notfound-rest-of-key';
+      req.headers.authorization = 'Bearer sk-notfound-rest-of-key';
       ApiKey.findOne.mockResolvedValue(null);
 
       // Execute
@@ -347,7 +347,7 @@ describe('Authentication Middleware', () => {
 
     test('should return 403 when API key is inactive', async () => {
       // Setup
-      req.headers['x-api-key'] = 'sk-inactive-rest-of-key';
+      req.headers.authorization = 'Bearer sk-inactive-rest-of-key';
 
       const mockApiKey = {
         prefix: 'inactive',
@@ -369,7 +369,7 @@ describe('Authentication Middleware', () => {
 
     test('should return 403 when API key has expired', async () => {
       // Setup
-      req.headers['x-api-key'] = 'sk-expired-rest-of-key';
+      req.headers.authorization = 'Bearer sk-expired-rest-of-key';
 
       const pastDate = new Date();
       pastDate.setDate(pastDate.getDate() - 1); // Yesterday
@@ -394,7 +394,7 @@ describe('Authentication Middleware', () => {
 
     test('should return 401 when API key verification fails', async () => {
       // Setup
-      req.headers['x-api-key'] = 'sk-invalid-rest-of-key';
+      req.headers.authorization = 'Bearer sk-invalid-rest-of-key';
 
       const mockApiKey = {
         prefix: 'invalid',
@@ -418,7 +418,7 @@ describe('Authentication Middleware', () => {
 
     test('should return 401 when user is not found or inactive', async () => {
       // Setup
-      req.headers['x-api-key'] = 'sk-nouser-rest-of-key';
+      req.headers.authorization = 'Bearer sk-nouser-rest-of-key';
 
       const mockApiKey = {
         prefix: 'nouser',
