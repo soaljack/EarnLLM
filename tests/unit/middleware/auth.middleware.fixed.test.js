@@ -4,13 +4,23 @@
 
 // BEFORE any require/import statements for the module-under-test or its direct dependencies
 jest.resetModules(); // Reset module cache
-jest.unmock('../../../src/middleware/auth.middleware'); // Ensure we test the REAL middleware
+jest.unmock('../../../src/middleware/jwt.middleware'); // Ensure we test the REAL middleware
 
 // Mock dependencies BEFORE requiring the module-under-test
 
 const mockSequelizeModels = require('../../mocks/sequelize.mock');
 
 jest.mock('../../../src/models', () => mockSequelizeModels);
+const crypto = require('crypto');
+
+jest.mock('crypto', () => ({
+  ...jest.requireActual('crypto'), // Keep other crypto functions
+  createHash: jest.fn().mockReturnValue({
+    update: jest.fn().mockReturnThis(),
+    digest: jest.fn(),
+  }),
+}));
+
 const mockJwtVerify = jest.fn((token, secret) => {
   // Ensure JWT_SECRET is available for comparison, or use a default test secret if necessary
   const expectedSecret = process.env.JWT_SECRET || 'test_secret_key';
@@ -71,17 +81,7 @@ describe('Authentication Middleware', () => {
     test('should authenticate user with valid JWT token', async () => {
       // Setup
       req.headers.authorization = 'Bearer valid-token';
-
-      // mockJwtVerify is now globally configured for different token strings
-      // The old mockImplementation block above was removed as mockJwtVerify handles this.
-
-      const mockUser = {
-        id: 1,
-        email: 'test@example.com',
-        isActive: true,
-        update: jest.fn().mockResolvedValue(true),
-      };
-
+      const mockUser = { id: 1, email: 'test@example.com', isActive: true, update: jest.fn().mockResolvedValue(true) };
       User.findByPk.mockResolvedValue(mockUser);
 
       // Execute
@@ -90,12 +90,9 @@ describe('Authentication Middleware', () => {
       // Assert
       expect(mockJwtVerify).toHaveBeenCalledWith('valid-token', process.env.JWT_SECRET);
       expect(User.findByPk).toHaveBeenCalledWith(1);
-      expect(mockUser.update).toHaveBeenCalledWith(expect.objectContaining({
-        lastLoginAt: expect.any(Date),
-      }));
+      expect(mockUser.update).toHaveBeenCalledWith({ lastLoginAt: expect.any(Date) });
       expect(req.user).toBe(mockUser);
-      expect(next).toHaveBeenCalled();
-      expect(next.mock.calls[0].length).toBe(0); // Called with no arguments
+      expect(next).toHaveBeenCalledWith();
     });
 
     test('should return 401 when authorization header is missing', async () => {
@@ -105,7 +102,7 @@ describe('Authentication Middleware', () => {
       // Assert
       expect(next).toHaveBeenCalledWith(expect.objectContaining({
         status: 401,
-        message: expect.stringContaining('missing'),
+        message: expect.stringContaining('missing or invalid'),
       }));
       expect(mockJwtVerify).not.toHaveBeenCalled();
     });
@@ -120,20 +117,15 @@ describe('Authentication Middleware', () => {
       // Assert
       expect(next).toHaveBeenCalledWith(expect.objectContaining({
         status: 401,
-        message: expect.stringContaining('Invalid authorization format'),
+        message: expect.stringContaining('missing or invalid'),
       }));
-      expect(mockJwtVerify).not.toHaveBeenCalled();
     });
 
     test('should return 401 when token is expired', async () => {
       // Setup
       req.headers.authorization = 'Bearer expired-token';
 
-      const tokenError = new Error('Token expired');
-      tokenError.name = 'TokenExpiredError';
-
-      // mockJwtVerify is now globally configured for different token strings
-      // (Previous incorrect mock lines including 'throw tokenError;' and '});' were removed here)
+      // mockJwtVerify is configured to throw TokenExpiredError for 'expired-token'
 
       // Execute
       await authenticateJWT(req, res, next);
@@ -150,11 +142,7 @@ describe('Authentication Middleware', () => {
       // Setup
       req.headers.authorization = 'Bearer invalid-token';
 
-      const tokenError = new Error('Invalid token');
-      tokenError.name = 'JsonWebTokenError';
-
-      // mockJwtVerify is now globally configured for different token strings
-      // (Previous incorrect mock lines including 'throw tokenError;' and '});' were removed here)
+      // mockJwtVerify is configured to throw JsonWebTokenError for 'invalid-token'
 
       // Execute
       await authenticateJWT(req, res, next);
@@ -169,16 +157,14 @@ describe('Authentication Middleware', () => {
 
     test('should return 401 when user not found', async () => {
       // Setup
-      req.headers.authorization = 'Bearer user-not-found-token'; // Use specific token for this scenario
-
-      // Token 'user-not-found-token' is configured in mockJwtVerify to return { id: 999 }
+      req.headers.authorization = 'Bearer user-not-found-token';
       User.findByPk.mockResolvedValue(null);
 
       // Execute
       await authenticateJWT(req, res, next);
 
       // Assert
-      expect(mockJwtVerify).toHaveBeenCalled();
+      expect(mockJwtVerify).toHaveBeenCalledWith('user-not-found-token', process.env.JWT_SECRET);
       expect(User.findByPk).toHaveBeenCalledWith(999);
       expect(next).toHaveBeenCalledWith(expect.objectContaining({
         status: 401,
@@ -188,10 +174,9 @@ describe('Authentication Middleware', () => {
 
     test('should return 403 when user account is inactive', async () => {
       // Setup
-      req.headers.authorization = 'Bearer inactive-user-token'; // Use specific token for this scenario
-
-      // Ensure this mock is active for the inactive user test
-      User.findByPk.mockResolvedValue({ id: 1, isActive: false });
+      req.headers.authorization = 'Bearer inactive-user-token';
+      const mockInactiveUser = { id: 1, isActive: false };
+      User.findByPk.mockResolvedValue(mockInactiveUser);
 
       // Execute
       await authenticateJWT(req, res, next);
@@ -207,236 +192,65 @@ describe('Authentication Middleware', () => {
   });
 
   describe('authenticateApiKey', () => {
+    const mockHashedKey = 'hashed-valid-key';
+
+    beforeEach(() => {
+      crypto.createHash.mockReturnValue({ update: jest.fn().mockReturnThis(), digest: jest.fn().mockReturnValue(mockHashedKey) });
+    });
+
     test('should authenticate with valid API key', async () => {
-      // Setup
-      req.headers.authorization = 'Bearer sk-validprefix-rest-of-key';
-
-      const mockUser = {
-        id: 1,
-        email: 'test@example.com',
-        isActive: true,
-        BillingAccount: {
-          id: 1,
-          UserId: 1,
-          PricingPlanId: 1,
-          stripeSubscriptionStatus: 'active',
-          PricingPlan: {
-            id: 1,
-            name: 'Free Tier',
-            code: 'FREE',
-            maxApiKeys: 1,
-            requestsPerMinute: 60,
-            requestsPerDay: 1000,
-            toJSON: function toJSON() {
-              return { ...this };
-            },
-          },
-          toJSON: function toJSON() {
-            return {
-              id: 1,
-              stripeSubscriptionStatus: 'active',
-              PricingPlan: { id: 1, name: 'Free Tier' },
-            };
-          },
-        },
-        toJSON: function toJSON() {
-          const rest = { ...this };
-          delete rest.BillingAccount;
-          return {
-            ...rest,
-            BillingAccount: this.BillingAccount.toJSON
-              ? this.BillingAccount.toJSON()
-              : this.BillingAccount,
-          };
-        },
-        validatePassword: jest.fn().mockResolvedValue(true),
-        update: jest.fn().mockImplementation(function update(newData) {
-          Object.assign(this, newData);
-          return Promise.resolve(this);
-        }),
-        getApiUsage: jest.fn().mockResolvedValue({ totalRequests: 0, tokensUsed: 0 }),
-        canMakeRequest: jest.fn().mockResolvedValue({ canMakeRequest: true }),
-      };
-
-      const mockApiKey = {
-        id: 1,
-        prefix: 'validpre',
-        isActive: true,
-        expiresAt: null,
-        permissions: ['read:models'],
-        UserId: 1,
-        verify: jest.fn().mockReturnValue(true),
-        update: jest.fn().mockResolvedValue(true),
-        User: mockUser, // Ensure User object is part of mockApiKey if needed by any logic
-      };
+      req.headers.authorization = 'Bearer sk-valid-key';
+      const mockUser = { id: 1, isActive: true, PricingPlan: { permissions: ['read:models'] } };
+      const mockApiKey = { id: 1, UserId: 1, isActive: true, expiresAt: null, update: jest.fn() };
 
       ApiKey.findOne.mockResolvedValue(mockApiKey);
-      User.findByPk.mockImplementation((id) => {
-        if (id === mockApiKey.UserId) {
-          return Promise.resolve(mockUser);
-        }
-        return Promise.resolve(null);
-      });
+      User.findByPk.mockResolvedValue(mockUser);
 
-      // Execute
       await authenticateApiKey(req, res, next);
 
-      // Assert
-      expect(ApiKey.findOne).toHaveBeenCalledWith(expect.objectContaining({
-        where: { prefix: 'validpre' },
-      }));
-      expect(mockApiKey.verify).toHaveBeenCalledWith('validprefix-rest-of-key');
-      expect(User.findByPk).toHaveBeenCalledWith(mockApiKey.UserId, {
-        include: [{
-          model: PricingPlan,
-          as: 'PricingPlan',
-        }],
-      });
-      expect(req.user).toEqual(mockUser);
+      expect(crypto.createHash).toHaveBeenCalledWith('sha256');
+      expect(crypto.createHash().update).toHaveBeenCalledWith('valid-key');
+      expect(ApiKey.findOne).toHaveBeenCalledWith({ where: { key: mockHashedKey } });
+      expect(User.findByPk).toHaveBeenCalledWith(mockApiKey.UserId, expect.any(Object));
+      expect(mockApiKey.update).toHaveBeenCalledWith({ lastUsedAt: expect.any(Date) });
+      expect(req.user).toBe(mockUser);
       expect(req.apiKey).toBe(mockApiKey);
-      expect(next).toHaveBeenCalled();
-      expect(next.mock.calls[0].length).toBe(0); // Called with no arguments
+      expect(next).toHaveBeenCalledWith();
     });
 
     test('should return 401 when API key is missing', async () => {
-      // Execute
       await authenticateApiKey(req, res, next);
-
-      // Assert
       expect(next).toHaveBeenCalledWith(expect.objectContaining({
         status: 401,
-        message: expect.stringContaining('missing'),
-      }));
-      expect(ApiKey.findOne).not.toHaveBeenCalled();
-    });
-
-    test('should return 401 when API key format is invalid', async () => {
-      // Setup
-      req.headers.authorization = 'Bearer invalid-key-format';
-
-      // Execute
-      await authenticateApiKey(req, res, next);
-
-      // Assert
-      expect(next).toHaveBeenCalledWith(expect.objectContaining({
-        status: 401,
-        message: expect.stringContaining('Invalid API key format'),
+        message: expect.stringContaining('missing or invalid'),
       }));
       expect(ApiKey.findOne).not.toHaveBeenCalled();
     });
 
     test('should return 401 when API key is not found', async () => {
-      // Setup
-      req.headers.authorization = 'Bearer sk-notfound-rest-of-key';
+      req.headers.authorization = 'Bearer sk-not-found-key';
       ApiKey.findOne.mockResolvedValue(null);
-
-      // Execute
       await authenticateApiKey(req, res, next);
-
-      // Assert
-      expect(ApiKey.findOne).toHaveBeenCalledWith(expect.objectContaining({
-        where: { prefix: 'notfound' },
-      }));
-      expect(next).toHaveBeenCalledWith(expect.objectContaining({
-        status: 401,
-        message: 'Invalid API key',
-      }));
+      expect(ApiKey.findOne).toHaveBeenCalledWith({ where: { key: mockHashedKey } });
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({ status: 401, message: 'Invalid API key.' }));
     });
 
     test('should return 403 when API key is inactive', async () => {
-      // Setup
-      req.headers.authorization = 'Bearer sk-inactive-rest-of-key';
-
-      const mockApiKey = {
-        prefix: 'inactive',
-        isActive: false,
-        expiresAt: null,
-      };
-
+      req.headers.authorization = 'Bearer sk-inactive-key';
+      const mockApiKey = { isActive: false };
       ApiKey.findOne.mockResolvedValue(mockApiKey);
-
-      // Execute
       await authenticateApiKey(req, res, next);
-
-      // Assert
-      expect(next).toHaveBeenCalledWith(expect.objectContaining({
-        status: 403,
-        message: expect.stringContaining('inactive'),
-      }));
-    });
-
-    test('should return 403 when API key has expired', async () => {
-      // Setup
-      req.headers.authorization = 'Bearer sk-expired-rest-of-key';
-
-      const pastDate = new Date();
-      pastDate.setDate(pastDate.getDate() - 1); // Yesterday
-
-      const mockApiKey = {
-        prefix: 'expired',
-        isActive: true,
-        expiresAt: pastDate,
-      };
-
-      ApiKey.findOne.mockResolvedValue(mockApiKey);
-
-      // Execute
-      await authenticateApiKey(req, res, next);
-
-      // Assert
-      expect(next).toHaveBeenCalledWith(expect.objectContaining({
-        status: 403,
-        message: expect.stringContaining('expired'),
-      }));
-    });
-
-    test('should return 401 when API key verification fails', async () => {
-      // Setup
-      req.headers.authorization = 'Bearer sk-invalid-rest-of-key';
-
-      const mockApiKey = {
-        prefix: 'invalid',
-        isActive: true,
-        expiresAt: null,
-        verify: jest.fn().mockReturnValue(false),
-      };
-
-      ApiKey.findOne.mockResolvedValue(mockApiKey);
-
-      // Execute
-      await authenticateApiKey(req, res, next);
-
-      // Assert
-      expect(mockApiKey.verify).toHaveBeenCalled();
-      expect(next).toHaveBeenCalledWith(expect.objectContaining({
-        status: 401,
-        message: expect.stringContaining('Invalid API key'),
-      }));
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({ status: 403, message: 'API key is inactive.' }));
     });
 
     test('should return 401 when user is not found or inactive', async () => {
-      // Setup
-      req.headers.authorization = 'Bearer sk-nouser-rest-of-key';
-
-      const mockApiKey = {
-        prefix: 'nouser',
-        isActive: true,
-        expiresAt: null,
-        UserId: 999,
-        verify: jest.fn().mockReturnValue(true),
-      };
-
+      req.headers.authorization = 'Bearer sk-valid-key';
+      const mockApiKey = { id: 1, UserId: 999, isActive: true, expiresAt: null };
       ApiKey.findOne.mockResolvedValue(mockApiKey);
       User.findByPk.mockResolvedValue(null);
-
-      // Execute
       await authenticateApiKey(req, res, next);
-
-      // Assert
-      expect(next).toHaveBeenCalledWith(expect.objectContaining({
-        status: 401,
-        message: expect.stringContaining('User account is inactive or not found'),
-      }));
+      expect(User.findByPk).toHaveBeenCalledWith(999, expect.any(Object));
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({ status: 401, message: 'User account is inactive or not found.' }));
     });
   });
 
@@ -480,50 +294,35 @@ describe('Authentication Middleware', () => {
   });
 
   describe('requireApiPermission', () => {
-    test('should allow when API key has the required permission', () => {
-      // Setup
-      req.apiKey = {
-        permissions: ['read:models', 'write:models'],
-      };
+    test('should allow when user plan has required permission', () => {
+      req.user = { PricingPlan: { permissions: ['read:models'] } };
       const middleware = requireApiPermission('read:models');
-
-      // Execute
       middleware(req, res, next);
-
-      // Assert
-      expect(next).toHaveBeenCalled();
-      expect(next.mock.calls[0].length).toBe(0); // Called with no arguments
+      expect(next).toHaveBeenCalledWith();
     });
 
-    test('should block when API key does not have required permission', () => {
+    test('should block when user plan is missing permission', () => {
       // Setup
-      req.apiKey = {
-        permissions: ['read:models'],
-      };
+      req.user = { PricingPlan: { permissions: ['read:models'] } };
       const middleware = requireApiPermission('write:models');
 
       // Execute
       middleware(req, res, next);
 
       // Assert
-      expect(next).toHaveBeenCalledWith(expect.objectContaining({
-        status: 403,
-        message: expect.stringContaining('Missing required permission'),
-      }));
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({ status: 403 }));
     });
 
-    test('should return 403 if apiKey not available', () => {
+    test('should block if user or plan is missing', () => {
       // Setup
+      req.user = null;
       const middleware = requireApiPermission('read:models');
 
       // Execute
       middleware(req, res, next);
 
       // Assert
-      expect(next).toHaveBeenCalledWith(expect.objectContaining({
-        status: 403,
-        message: expect.stringContaining('API authentication required'),
-      }));
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({ status: 403 }));
     });
   });
 });

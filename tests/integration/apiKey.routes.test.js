@@ -1,30 +1,18 @@
-const request = require('supertest');
-const http = require('http');
+const { startServer, stopServer } = require('./helpers');
 const jwt = require('jsonwebtoken');
-const app = require('../../app');
 const config = require('../../src/config');
 
-const { connectRateLimiter, closeRateLimiter } = require('../../src/middleware/rateLimit.middleware');
-const { mockRedisClient } = require('../setup');
 
 describe('API Key Routes', () => {
   const {
     User, ApiKey, BillingAccount, PricingPlan,
   } = global.models;
-  let server;
   let testUser;
   let authToken;
+  let serverRequest;
 
   beforeAll(async () => {
-    server = http.createServer(app);
-    await new Promise((resolve) => { server.listen(resolve); });
-
-    // Mock Redis
-    mockRedisClient.isReady = true;
-    mockRedisClient.quit = jest.fn().mockResolvedValue('OK');
-    mockRedisClient.connect = jest.fn().mockResolvedValue();
-    mockRedisClient.on = jest.fn();
-    await connectRateLimiter(mockRedisClient);
+    serverRequest = await startServer();
   });
 
   beforeEach(async () => {
@@ -44,27 +32,18 @@ describe('API Key Routes', () => {
   });
 
   afterEach(async () => {
-    // Clean up all data created for the test
-    await ApiKey.destroy({ where: {} });
-    await BillingAccount.destroy({ where: {} });
-    await User.destroy({ where: {} });
+    // Use truncate to quickly clear all test data and reset sequences
+    await User.truncate({ cascade: true, restartIdentity: true });
   });
 
-  afterAll((done) => {
-    if (server) {
-      server.close(async () => {
-        await closeRateLimiter();
-        done();
-      });
-    } else {
-      done();
-    }
+  afterAll(async () => {
+    await stopServer();
   });
 
   describe('POST /v1/api-keys', () => {
     it('should create a new API key and return it', async () => {
       const keyName = 'My Test Key';
-      const res = await request(server)
+      const res = await serverRequest
         .post('/v1/api-keys')
         .set('Authorization', `Bearer ${authToken}`)
         .send({ name: keyName })
@@ -81,7 +60,7 @@ describe('API Key Routes', () => {
     });
 
     it('should return 400 if name is missing', async () => {
-      await request(server)
+      await serverRequest
         .post('/v1/api-keys')
         .set('Authorization', `Bearer ${authToken}`)
         .send({})
@@ -91,10 +70,10 @@ describe('API Key Routes', () => {
 
   describe('GET /v1/api-keys', () => {
     it('should retrieve all API keys for the user', async () => {
-      await ApiKey.create({ name: 'Key 1', UserId: testUser.id, key: 'key1_hashed' });
-      await ApiKey.create({ name: 'Key 2', UserId: testUser.id, key: 'key2_hashed' });
+      await ApiKey.create({ name: 'Key 1', UserId: testUser.id, key: 'key1_hashed', prefix: 'sk_test_1' });
+      await ApiKey.create({ name: 'Key 2', UserId: testUser.id, key: 'key2_hashed', prefix: 'sk_test_2' });
 
-      const res = await request(server)
+      const res = await serverRequest
         .get('/v1/api-keys')
         .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
@@ -110,10 +89,10 @@ describe('API Key Routes', () => {
   describe('POST /v1/api-keys/:id/revoke', () => {
     it('should revoke an active API key', async () => {
       const apiKey = await ApiKey.create({
-        name: 'Key to Revoke', UserId: testUser.id, key: 'key_to_revoke_hashed', isActive: true,
+        name: 'Key to Revoke', UserId: testUser.id, key: 'key_to_revoke_hashed', prefix: 'sk_test_rev', isActive: true,
       });
 
-      await request(server)
+      await serverRequest
         .post(`/v1/api-keys/${apiKey.id}/revoke`)
         .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
@@ -123,7 +102,7 @@ describe('API Key Routes', () => {
     });
 
     it('should return 404 for a non-existent key', async () => {
-      await request(server)
+      await serverRequest
         .post('/v1/api-keys/999999/revoke')
         .set('Authorization', `Bearer ${authToken}`)
         .expect(404);
@@ -135,9 +114,9 @@ describe('API Key Routes', () => {
         password: 'password',
         PricingPlanId: testUser.PricingPlanId,
       });
-      const apiKey = await ApiKey.create({ name: 'Other User Key', UserId: otherUser.id, key: 'other_key_hashed' });
+      const apiKey = await ApiKey.create({ name: 'Other User Key', UserId: otherUser.id, key: 'other_key_hashed', prefix: 'sk_test_other' });
 
-      await request(server)
+      await serverRequest
         .post(`/v1/api-keys/${apiKey.id}/revoke`)
         .set('Authorization', `Bearer ${authToken}`)
         .expect(404);
@@ -146,9 +125,9 @@ describe('API Key Routes', () => {
 
   describe('DELETE /v1/api-keys/:id', () => {
     it('should delete an API key', async () => {
-      const apiKey = await ApiKey.create({ name: 'Key to Delete', UserId: testUser.id, key: 'key_to_delete_hashed' });
+      const apiKey = await ApiKey.create({ name: 'Key to Delete', UserId: testUser.id, key: 'key_to_delete_hashed', prefix: 'sk_test_del' });
 
-      await request(server)
+      await serverRequest
         .delete(`/v1/api-keys/${apiKey.id}`)
         .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
@@ -158,7 +137,7 @@ describe('API Key Routes', () => {
     });
 
     it('should return 404 for a non-existent key', async () => {
-      await request(server)
+      await serverRequest
         .delete('/v1/api-keys/999999')
         .set('Authorization', `Bearer ${authToken}`)
         .expect(404);
@@ -167,10 +146,10 @@ describe('API Key Routes', () => {
 
   describe('PUT /v1/api-keys/:id', () => {
     it('should update the name of an API key', async () => {
-      const apiKey = await ApiKey.create({ name: 'Key to Update', UserId: testUser.id, key: 'key_to_update_hashed' });
+      const apiKey = await ApiKey.create({ name: 'Key to Update', UserId: testUser.id, key: 'key_to_update_hashed', prefix: 'sk_test_upd' });
       const newName = 'Updated Key Name';
 
-      const res = await request(server)
+      const res = await serverRequest
         .put(`/v1/api-keys/${apiKey.id}`)
         .set('Authorization', `Bearer ${authToken}`)
         .send({ name: newName })
@@ -183,7 +162,7 @@ describe('API Key Routes', () => {
     });
 
     it('should return 404 for a non-existent key', async () => {
-      await request(server)
+      await serverRequest
         .put('/v1/api-keys/999999')
         .set('Authorization', `Bearer ${authToken}`)
         .send({ name: 'New Name' })
@@ -196,9 +175,9 @@ describe('API Key Routes', () => {
         password: 'password',
         PricingPlanId: testUser.PricingPlanId,
       });
-      const apiKey = await ApiKey.create({ name: 'Other User Key', UserId: otherUser.id, key: 'other_key_hashed' });
+      const apiKey = await ApiKey.create({ name: 'Other User Key', UserId: otherUser.id, key: 'other_key_hashed', prefix: 'sk_test_other' });
 
-      await request(server)
+      await serverRequest
         .put(`/v1/api-keys/${apiKey.id}`)
         .set('Authorization', `Bearer ${authToken}`)
         .send({ name: 'New Name' })

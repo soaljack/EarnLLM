@@ -2,6 +2,15 @@
  * Unit tests for ExternalModel model
  */
 
+// Mock the ExternalModel
+const mockExternalModel = {
+  create: jest.fn(),
+};
+jest.mock('../../../src/models', () => ({
+  ...jest.requireActual('../../../src/models'),
+  ExternalModel: mockExternalModel,
+}));
+
 const { ExternalModel } = require('../../../src/models');
 
 describe('ExternalModel Model', () => {
@@ -21,7 +30,7 @@ describe('ExternalModel Model', () => {
     });
 
     // Mock static method
-    jest.spyOn(ExternalModel, 'create').mockImplementation(async (modelData) => {
+    ExternalModel.create.mockImplementation(async (modelData) => {
       // Simulate validation for required fields
       if (
         !modelData.UserId

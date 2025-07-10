@@ -1,7 +1,7 @@
 // Mock dependencies first to ensure they are applied before any other imports
-jest.mock('../../src/middleware/authenticateApiKey');
-jest.mock('../../src/middleware/authenticateJWT');
-jest.mock('../../src/middleware/requireAdmin');
+jest.mock('../../src/middleware/apiKey.middleware');
+jest.mock('../../src/middleware/jwt.middleware');
+jest.mock('../../src/middleware/admin.middleware');
 
 jest.mock('../../src/models', () => ({
   LlmModel: {
@@ -17,14 +17,23 @@ jest.mock('../../src/models', () => ({
   },
 }));
 
-const request = require('supertest');
-const app = require('../../app');
+
+const { startServer, stopServer } = require('./helpers');
 const { authenticateApiKey } = require('../../src/middleware/apiKey.middleware');
 const { authenticateJWT } = require('../../src/middleware/jwt.middleware');
 const { requireAdmin } = require('../../src/middleware/admin.middleware');
 const { LlmModel, ExternalModel } = require('../../src/models');
 
 describe('Model Routes', () => {
+  let request;
+
+  beforeAll(async () => {
+    request = await startServer();
+  });
+
+  afterAll(async () => {
+    await stopServer();
+  });
   let testUser;
   let adminUser;
   let systemModel;
@@ -77,7 +86,7 @@ describe('Model Routes', () => {
       ExternalModel.findAll.mockResolvedValue([externalModel]);
 
       // Act
-      const response = await request(app).get('/api/models');
+      const response = await request.get('/api/models');
 
       // Assert
       expect(response.status).toBe(200);
@@ -108,7 +117,7 @@ describe('Model Routes', () => {
       LlmModel.create.mockResolvedValue({ id: 102, ...newModelData });
 
       // Act
-      const response = await request(app).post('/api/models').send(newModelData).expect(201);
+      const response = await request.post('/api/models').send(newModelData).expect(201);
 
       // Assert
       expect(LlmModel.create).toHaveBeenCalledWith(expect.objectContaining(newModelData));
@@ -127,7 +136,7 @@ describe('Model Routes', () => {
       LlmModel.findByPk.mockResolvedValue(mockModelInstance);
 
       // Act
-      const response = await request(app)
+      const response = await request
         .put(`/api/models/${systemModel.id}`)
         .send({ description: 'Updated description' })
         .expect(200);
@@ -164,7 +173,7 @@ describe('Model Routes', () => {
       ExternalModel.create.mockResolvedValue(mockCreatedModel);
 
       // Act
-      const response = await request(app).post('/api/models/external').send(externalModelData);
+      const response = await request.post('/api/models/external').send(externalModelData);
 
       // Assert
       expect(response.status).toBe(201);
@@ -181,7 +190,7 @@ describe('Model Routes', () => {
       const externalModelData = { name: 'test' };
 
       // Act
-      const response = await request(app).post('/api/models/external').send(externalModelData);
+      const response = await request.post('/api/models/external').send(externalModelData);
 
       // Assert
       expect(response.status).toBe(403);
@@ -201,7 +210,7 @@ describe('Model Routes', () => {
       ExternalModel.findOne.mockResolvedValue(mockModelInstance);
 
       // Act
-      const response = await request(app)
+      const response = await request
         .put(`/api/models/external/${externalModel.id}`)
         .send({ name: 'An Updated Name' })
         .expect(200);
@@ -219,7 +228,7 @@ describe('Model Routes', () => {
       ExternalModel.destroy.mockResolvedValue(1);
 
       // Act
-      await request(app).delete(`/api/models/external/${externalModel.id}`).expect(204);
+      await request.delete(`/api/models/external/${externalModel.id}`).expect(204);
 
       // Assert
       expect(ExternalModel.destroy).toHaveBeenCalledWith({
@@ -231,7 +240,7 @@ describe('Model Routes', () => {
       // Arrange
       ExternalModel.destroy.mockResolvedValue(0);
       // Act & Assert
-      await request(app).delete('/api/models/external/999').expect(404);
+      await request.delete('/api/models/external/999').expect(404);
     });
 
     it("should not find another user's model to update", async () => {
@@ -239,7 +248,7 @@ describe('Model Routes', () => {
       ExternalModel.findOne.mockResolvedValue(null);
 
       // Act & Assert
-      await request(app)
+      await request
         .put('/api/models/external/999')
         .send({ name: 'Attempted Update' })
         .expect(404);

@@ -2,6 +2,15 @@
  * Unit tests for ApiUsage model
  */
 
+// Mock the ApiUsage model
+const mockApiUsage = {
+  create: jest.fn(),
+};
+jest.mock('../../../src/models', () => ({
+  ...jest.requireActual('../../../src/models'),
+  ApiUsage: mockApiUsage,
+}));
+
 const { ApiUsage } = require('../../../src/models');
 
 describe('ApiUsage Model', () => {
@@ -12,7 +21,7 @@ describe('ApiUsage Model', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    jest.spyOn(ApiUsage, 'create').mockImplementation(async (usageData) => {
+    ApiUsage.create.mockImplementation(async (usageData) => {
       // Simulate validation for required fields
       if (!usageData.UserId || !usageData.endpoint) {
         return Promise.reject(new Error('Validation error: Missing required fields'));

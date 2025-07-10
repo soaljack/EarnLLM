@@ -2,6 +2,17 @@
  * Unit tests for BillingAccount model
  */
 
+// Mock the BillingAccount model
+const mockBillingAccount = {
+  create: jest.fn(),
+  findOne: jest.fn(),
+  update: jest.fn(),
+};
+jest.mock('../../../src/models', () => ({
+  ...jest.requireActual('../../../src/models'),
+  BillingAccount: mockBillingAccount,
+}));
+
 const { BillingAccount } = require('../../../src/models');
 
 describe('BillingAccount Model', () => {
@@ -23,7 +34,7 @@ describe('BillingAccount Model', () => {
     });
 
     // Spy on the real 'create' method and provide a mock implementation
-    jest.spyOn(BillingAccount, 'create').mockImplementation(async (accountData) => {
+    BillingAccount.create.mockImplementation(async (accountData) => {
       // Simulate validation error for the specific test case
       if (accountData.subscriptionStatus === 'invalid_status') {
         const error = new Error('Validation error: Invalid subscription status');

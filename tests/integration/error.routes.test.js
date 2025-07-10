@@ -1,39 +1,37 @@
-// Mock dependencies first
-jest.mock('../../src/middleware/auth.middleware', () => ({
-  authenticateJWT: (req, res, next) => next(),
-  requireAdmin: (req, res, next) => next(),
-  authenticateApiKey: (req, res, next) => next(),
-}));
-
-jest.mock('../../src/middleware/rateLimit.middleware', () => ({
-  createPublicRateLimiter: () => (req, res, next) => next(),
-  rateLimitByPlan: (req, res, next) => next(),
-  checkDailyQuota: (req, res, next) => next(),
-  checkTokenAllowance: (req, res, next) => next(),
-  connectRateLimiter: jest.fn(),
-  closeRateLimiter: jest.fn(),
-}));
-
-jest.mock('../../src/models', () => ({
-  User: {
-    findOne: jest.fn(),
-    create: jest.fn(),
-  },
-  BillingAccount: {
-    create: jest.fn(),
-  },
-  PricingPlan: {
-    findOne: jest.fn(),
-  },
-}));
-
-const request = require('supertest');
+const { startServer, stopServer } = require('./helpers');
 const { StatusCodes } = require('http-status-codes');
-const app = require('../../app');
-const { User } = require('../../src/models');
+
+// Mock models before they are imported by the app
+jest.mock('../../src/models', () => ({
+  User: { findOne: jest.fn(), create: jest.fn() },
+  PricingPlan: { findOne: jest.fn() },
+  BillingAccount: { create: jest.fn() },
+  ApiKey: { findOne: jest.fn() },
+  LlmModel: { findOne: jest.fn() },
+  ApiUsage: { findOne: jest.fn() },
+  ExternalModel: { findOne: jest.fn() },
+  sequelize: {
+    authenticate: jest.fn().mockResolvedValue(),
+    sync: jest.fn().mockResolvedValue(),
+    transaction: jest.fn().mockImplementation(async (callback) => callback('mockTransaction')),
+  },
+}));
+
+const { User, PricingPlan } = require('../../src/models');
+const request = require('supertest');
 
 describe('Error Handling Integration Tests', () => {
-  afterEach(() => {
+  let app;
+
+  beforeAll(async () => {
+    app = await startServer();
+  });
+
+  afterAll(async () => {
+    await stopServer();
+  });
+
+  beforeEach(() => {
     jest.clearAllMocks();
   });
 
@@ -52,15 +50,16 @@ describe('Error Handling Integration Tests', () => {
 
   describe('API Error Handling', () => {
     it('should handle ApiError thrown from controllers', async () => {
-      // Mock User.findOne to return a user, simulating that the email is already in use.
       User.findOne.mockResolvedValue({ id: 1, email: 'test@example.com' });
+      PricingPlan.findOne.mockResolvedValue({ id: 1, name: 'Starter' });
 
       const res = await request(app)
         .post('/api/auth/register')
         .send({
-          name: 'Test User',
           email: 'test@example.com',
           password: 'password123',
+          firstName: 'Test',
+          lastName: 'User',
         })
         .expect(StatusCodes.CONFLICT);
 

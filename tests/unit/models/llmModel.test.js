@@ -2,6 +2,15 @@
  * Unit tests for LlmModel model
  */
 
+// Mock the LlmModel
+const mockLlmModel = {
+  create: jest.fn(),
+  update: jest.fn(),
+};
+jest.mock('../../../src/models', () => ({
+  LlmModel: mockLlmModel,
+}));
+
 const { LlmModel } = require('../../../src/models');
 
 describe('LlmModel Model', () => {
@@ -14,8 +23,7 @@ describe('LlmModel Model', () => {
       return Promise.resolve(this);
     });
 
-    // Mock static method
-    jest.spyOn(LlmModel, 'create').mockImplementation(async (modelData) => {
+    LlmModel.create.mockImplementation(async (modelData) => {
       // Simulate validation for required fields
       if (
         !modelData.name

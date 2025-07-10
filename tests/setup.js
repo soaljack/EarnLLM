@@ -5,7 +5,7 @@ require('dotenv').config();
 /**
  * Global test setup for EarnLLM API tests
  */
-const redisMock = require('redis-mock');
+const Redis = require('ioredis-mock');
 const authHelpersMock = require('./mocks/authHelpers.mock');
 
 // Mock the logger to suppress info/warn messages during tests
@@ -35,52 +35,7 @@ jest.mock('../src/middleware/permission.middleware.js', () => ({
 }));
 
 // Centralized mock for the rate limiter's Redis client
-const mockRedisClient = redisMock.createClient();
-
-// In-memory store for sorted sets used by the rate limiter mock
-const sortedSets = {};
-
-mockRedisClient.zAdd = jest.fn().mockImplementation(async (key, members) => {
-  if (!sortedSets[key]) {
-    sortedSets[key] = [];
-  }
-  const membersArray = Array.isArray(members) ? members : [members];
-  membersArray.forEach((member) => {
-    sortedSets[key] = sortedSets[key].filter((m) => m.value !== member.value);
-    sortedSets[key].push(member);
-  });
-  return membersArray.length;
-});
-
-mockRedisClient.zCard = jest.fn().mockImplementation(async (key) => (sortedSets[key] ? sortedSets[key].length : 0));
-
-mockRedisClient.zRemRangeByScore = jest.fn().mockImplementation(async (key, min, max) => {
-  if (!sortedSets[key]) {
-    return 0;
-  }
-  const originalLength = sortedSets[key].length;
-  sortedSets[key] = sortedSets[key].filter((m) => m.score < min || m.score > max);
-  return originalLength - sortedSets[key].length;
-});
-
-mockRedisClient.expire = jest.fn().mockResolvedValue(1);
-
-// Mock the .multi() and .exec() for transactions
-mockRedisClient.multi = jest.fn(() => {
-  const multi = {
-    zRemRangeByScore: jest.fn().mockReturnThis(),
-    zAdd: jest.fn().mockReturnThis(),
-    zCard: jest.fn().mockReturnThis(),
-    expire: jest.fn().mockReturnThis(),
-    exec: jest.fn().mockResolvedValue([
-      0, // zRemRangeByScore result
-      1, // zAdd result
-      1, // zCard result
-      1, // expire result
-    ]),
-  };
-  return multi;
-});
+const mockRedisClient = new Redis();
 
 module.exports = { mockRedisClient };
 

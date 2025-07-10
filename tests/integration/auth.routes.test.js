@@ -1,36 +1,16 @@
-const request = require('supertest');
-const http = require('http');
 const bcrypt = require('bcryptjs');
-const app = require('../../app');
-
-const { connectRateLimiter, closeRateLimiter } = require('../../src/middleware/rateLimit.middleware');
-const { mockRedisClient } = require('../setup');
+const { startServer, stopServer } = require('./helpers');
 
 describe('Authentication Routes', () => {
   const { User, BillingAccount, PricingPlan } = global.models;
-  let server;
+  let request;
 
   beforeAll(async () => {
-    server = http.createServer(app);
-    await new Promise((resolve) => { server.listen(resolve); });
-
-    // Initialize rate limiter with mock client
-    mockRedisClient.isReady = true;
-    mockRedisClient.quit = jest.fn().mockResolvedValue('OK');
-    mockRedisClient.connect = jest.fn().mockResolvedValue();
-    mockRedisClient.on = jest.fn();
-    await connectRateLimiter(mockRedisClient);
+    request = await startServer();
   });
 
-  afterAll((done) => {
-    if (server) {
-      server.close(async () => {
-        await closeRateLimiter();
-        done();
-      });
-    } else {
-      done();
-    }
+  afterAll(async () => {
+    await stopServer();
   });
 
   // Clean up users and billing accounts after each test
@@ -49,7 +29,7 @@ describe('Authentication Routes', () => {
 
     it('should register a new user, create a billing account, and return a token', async () => {
       // Act: Send the registration request
-      const response = await request(server)
+      const response = await request
         .post('/v1/auth/register')
         .send(registerPayload)
         .expect(201);
@@ -72,7 +52,7 @@ describe('Authentication Routes', () => {
       await User.create(registerPayload);
 
       // Act & Assert: Attempt to register again and expect a conflict error
-      await request(server)
+      await request
         .post('/v1/auth/register')
         .send(registerPayload)
         .expect(409);
@@ -84,7 +64,7 @@ describe('Authentication Routes', () => {
       const { password, ...incompletePayload } = registerPayload;
 
       // Act & Assert: Send the incomplete payload and expect a bad request error
-      await request(server)
+      await request
         .post('/v1/auth/register')
         .send(incompletePayload)
         .expect(400);
@@ -95,7 +75,7 @@ describe('Authentication Routes', () => {
       await PricingPlan.destroy({ where: {} });
 
       // Act & Assert: Attempt to register and expect a server error
-      await request(server)
+      await request
         .post('/v1/auth/register')
         .send(registerPayload)
         .expect(500);
@@ -121,7 +101,7 @@ describe('Authentication Routes', () => {
     });
 
     it('should log in a registered user and return a token', async () => {
-      const response = await request(server)
+      const response = await request
         .post('/v1/auth/login')
         .send(loginPayload)
         .expect(200);
@@ -132,14 +112,14 @@ describe('Authentication Routes', () => {
     });
 
     it('should return 401 for incorrect password', async () => {
-      await request(server)
+      await request
         .post('/v1/auth/login')
         .send({ ...loginPayload, password: 'wrongpassword' })
         .expect(401);
     });
 
     it('should return 401 for a non-existent user', async () => {
-      await request(server)
+      await request
         .post('/v1/auth/login')
         .send({ ...loginPayload, email: 'nouser@example.com' })
         .expect(401);
@@ -148,7 +128,7 @@ describe('Authentication Routes', () => {
     it('should return 400 for missing email', async () => {
       // eslint-disable-next-line no-unused-vars
       const { email, ...payload } = loginPayload;
-      await request(server)
+      await request
         .post('/v1/auth/login')
         .send(payload)
         .expect(400);
@@ -157,7 +137,7 @@ describe('Authentication Routes', () => {
     it('should return 400 for missing password', async () => {
       // eslint-disable-next-line no-unused-vars
       const { password, ...payload } = loginPayload;
-      await request(server)
+      await request
         .post('/v1/auth/login')
         .send(payload)
         .expect(400);

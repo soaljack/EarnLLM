@@ -1,6 +1,6 @@
 const { Op } = require('sequelize');
 const createError = require('http-errors');
-const redis = require('redis');
+const Redis = require('ioredis');
 const { ApiUsage, BillingAccount } = require('../db/sequelize');
 
 let redisClient = null;
@@ -14,26 +14,24 @@ const connectRateLimiter = async (client = null) => {
     return;
   }
   // Prevent re-connecting if already connected
-  if (redisClient && redisClient.isReady) {
+  if (redisClient && redisClient.status === 'ready') {
     return;
   }
 
   if (process.env.REDIS_URL) {
-    redisClient = redis.createClient({
-      url: process.env.REDIS_URL,
+    redisClient = new Redis(process.env.REDIS_URL, {
+      // Recommended settings for production
+      maxRetriesPerRequest: 3,
+      enableReadyCheck: true,
     });
 
     redisClient.on('error', (err) => {
       console.error('Redis connection error:', err);
     });
 
-    try {
-      await redisClient.connect();
+    redisClient.on('ready', () => {
       console.log('Redis client connected successfully for rate limiting.');
-    } catch (err) {
-      console.error('Failed to connect to Redis for rate limiting:', err);
-      redisClient = null; // Ensure we don't use a failed client
-    }
+    });
   } else {
     console.warn('No Redis URL provided. Using in-memory rate limiting (not suitable for production).');
   }
@@ -87,15 +85,16 @@ const rateLimitByPlan = async (req, res, next) => {
 
     let requestCount;
 
-    if (redisClient && redisClient.isReady) {
+    if (redisClient && redisClient.status === 'ready') {
       // Use a Redis transaction to ensure atomicity
-      const transaction = redisClient.multi();
-      transaction.zRemRangeByScore(key, 0, now - windowMs);
-      transaction.zAdd(key, { score: now, value: now.toString() });
-      transaction.zCard(key);
-      transaction.expire(key, 60);
-
-      const [, , count] = await transaction.exec();
+      const [[, zremrangeResult], [, zaddResult], [, zcardResult], [, expireResult]] = await redisClient
+        .multi()
+        .zremrangebyscore(key, 0, now - windowMs)
+        .zadd(key, now, now.toString())
+        .zcard(key)
+        .expire(key, 60)
+        .exec();
+      const count = zcardResult;
       requestCount = count;
     } else {
       // In-memory rate limiting
@@ -232,13 +231,20 @@ const checkTokenAllowance = async (req, res, next) => {
 };
 
 // Function to gracefully close the Redis client connection
-const closeRateLimiter = async () => {
-  if (redisClient && redisClient.isReady) {
-    await redisClient.quit();
-    // Ensure the client state is updated to prevent reuse
-    redisClient.isReady = false;
+const closeRateLimiter = async (client = null) => {
+  const clientToClose = client || redisClient;
+  if (clientToClose && typeof clientToClose.quit === 'function') {
+    try {
+      await clientToClose.quit();
+      console.log('Redis client disconnected.');
+    } catch (err) {
+      console.error('Error closing Redis client:', err);
+    }
+  }
+
+  // If we are closing the global client, nullify it
+  if (clientToClose === redisClient) {
     redisClient = null;
-    console.log('Redis client disconnected.');
   }
 };
 
@@ -257,16 +263,17 @@ const createPublicRateLimiter = ({ windowMs, max, message }) => async (req, res,
 
     let requestCount;
 
-    if (redisClient && redisClient.isReady) {
+    if (redisClient && redisClient.status === 'ready') {
       // Redis-based rate limiting using a sorted set
       // Clean up old entries that are outside the time window
-      await redisClient.zRemRangeByScore(key, 0, now - windowMs);
-      // Add the current request's timestamp
-      await redisClient.zAdd(key, { score: now, value: now.toString() });
-      // Set an expiration on the key to auto-clean from Redis
-      await redisClient.expire(key, Math.ceil(windowMs / 1000));
-      // Get the count of requests in the current window
-      requestCount = await redisClient.zCard(key);
+      const [[, zremrangeResult], [, zaddResult], [, expireResult], [, zcardResult]] = await redisClient
+        .multi()
+        .zremrangebyscore(key, 0, now - windowMs)
+        .zadd(key, now, now.toString())
+        .expire(key, Math.ceil(windowMs / 1000))
+        .zcard(key)
+        .exec();
+      requestCount = zcardResult;
     } else {
       // In-memory fallback
       if (!inMemoryStore.requests[key]) {
@@ -303,6 +310,8 @@ const createPublicRateLimiter = ({ windowMs, max, message }) => async (req, res,
   }
 };
 
+const getRateLimiterClient = () => redisClient;
+
 module.exports = {
   rateLimitByPlan,
   checkDailyQuota,
@@ -310,4 +319,5 @@ module.exports = {
   createPublicRateLimiter, // Export the new function
   connectRateLimiter, // Export for setup
   closeRateLimiter, // Export for graceful shutdown in tests
+  getRateLimiterClient,
 };

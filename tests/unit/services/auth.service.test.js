@@ -21,20 +21,15 @@ jest.mock('../../../src/models', () => ({
 const jwt = require('jsonwebtoken');
 const authService = require('../../../src/services/auth.service');
 const ApiError = require('../../../src/utils/ApiError');
-const {
-  User, BillingAccount, PricingPlan, sequelize,
-} = require('../../../src/models');
+const { sequelize, ...models } = require('../../../src/models');
 
 describe('Auth Service', () => {
   let mockTransaction;
 
   beforeEach(() => {
+    jest.clearAllMocks();
     mockTransaction = { commit: jest.fn(), rollback: jest.fn() };
     sequelize.transaction.mockImplementation(async (callback) => callback(mockTransaction));
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
   });
 
   describe('register', () => {
@@ -50,27 +45,18 @@ describe('Auth Service', () => {
       const mockPlan = { id: 'plan-123', code: 'starter', name: 'Starter' };
       const mockToken = 'test-token';
 
-      User.findOne.mockResolvedValue(null);
-      PricingPlan.findOne.mockResolvedValue(mockPlan);
-      User.create.mockResolvedValue(mockUser);
-      BillingAccount.create.mockResolvedValue({});
+      models.User.findOne.mockResolvedValue(null);
+      models.PricingPlan.findOne.mockResolvedValue(mockPlan);
+      models.User.create.mockResolvedValue(mockUser);
+      models.BillingAccount.create.mockResolvedValue({});
       jwt.sign.mockReturnValue(mockToken);
 
       const result = await authService.register(userData);
 
-      expect(User.findOne).toHaveBeenCalledWith({ where: { email: userData.email } });
-      expect(PricingPlan.findOne).toHaveBeenCalledWith({ where: { code: 'starter' } });
-      expect(User.create).toHaveBeenCalledWith({
-        ...userData,
-        PricingPlanId: mockPlan.id,
-      }, { transaction: mockTransaction });
-      expect(BillingAccount.create).toHaveBeenCalledWith({
-        UserId: mockUser.id,
-        billingEmail: userData.email,
-        creditBalance: 0,
-        tokenUsageThisMonth: 0,
-        paymentsEnabled: false,
-      }, { transaction: mockTransaction });
+      expect(models.User.findOne).toHaveBeenCalledWith({ where: { email: userData.email } });
+      expect(models.PricingPlan.findOne).toHaveBeenCalledWith({ where: { code: 'starter' } });
+      expect(models.User.create).toHaveBeenCalledWith({ ...userData, PricingPlanId: mockPlan.id }, { transaction: mockTransaction });
+      expect(models.BillingAccount.create).toHaveBeenCalledWith({ UserId: mockUser.id, billingEmail: userData.email, creditBalance: 0, tokenUsageThisMonth: 0, paymentsEnabled: false }, { transaction: mockTransaction });
       expect(jwt.sign).toHaveBeenCalled();
       expect(result.token).toBe(mockToken);
       expect(result.user.email).toBe(userData.email);
@@ -78,7 +64,9 @@ describe('Auth Service', () => {
 
     it('should throw an error if user already exists', async () => {
       const userData = { email: 'test@example.com' };
-      User.findOne.mockResolvedValue({ id: 'user-123' });
+      const mockUser = { id: 'user-123' };
+      models.User.findOne.mockResolvedValue(mockUser);
+      models.PricingPlan.findOne.mockResolvedValue({ id: 'plan-123', isDefault: true });
 
       await expect(authService.register(userData)).rejects.toThrow(
         new ApiError(409, 'User with this email already exists'),
@@ -87,8 +75,8 @@ describe('Auth Service', () => {
 
     it('should throw an error if default pricing plan is not found', async () => {
       const userData = { email: 'test@example.com' };
-      User.findOne.mockResolvedValue(null);
-      PricingPlan.findOne.mockResolvedValue(null);
+      models.User.findOne.mockResolvedValue(null);
+      models.PricingPlan.findOne.mockResolvedValue(null);
 
       await expect(authService.register(userData)).rejects.toThrow(
         new ApiError(500, 'Unable to find default pricing plan. Please contact support.'),
@@ -109,15 +97,12 @@ describe('Auth Service', () => {
       };
       const mockToken = 'test-token';
 
-      User.findOne.mockResolvedValue(mockUser);
+      models.User.findOne.mockResolvedValue(mockUser);
       jwt.sign.mockReturnValue(mockToken);
 
       const result = await authService.login(loginData);
 
-      expect(User.findOne).toHaveBeenCalledWith({
-        where: { email: loginData.email },
-        include: [{ model: PricingPlan }],
-      });
+      expect(models.User.findOne).toHaveBeenCalledWith({ where: { email: loginData.email }, include: [{ model: models.PricingPlan }] });
       expect(mockUser.validatePassword).toHaveBeenCalledWith(loginData.password);
       expect(mockUser.update).toHaveBeenCalledWith({ lastLoginAt: expect.any(Date) });
       expect(jwt.sign).toHaveBeenCalled();
@@ -127,7 +112,7 @@ describe('Auth Service', () => {
 
     it('should throw an error for invalid email', async () => {
       const loginData = { email: 'test@example.com', password: 'password123' };
-      User.findOne.mockResolvedValue(null);
+      models.User.findOne.mockResolvedValue(null);
 
       await expect(authService.login(loginData)).rejects.toThrow(new ApiError(401, 'Invalid email or password'));
     });
@@ -135,7 +120,7 @@ describe('Auth Service', () => {
     it('should throw an error for an inactive account', async () => {
       const loginData = { email: 'test@example.com', password: 'password123' };
       const mockUser = { ...loginData, isActive: false, validatePassword: jest.fn().mockResolvedValue(true) };
-      User.findOne.mockResolvedValue(mockUser);
+      models.User.findOne.mockResolvedValue(mockUser);
 
       await expect(authService.login(loginData)).rejects.toThrow(new ApiError(403, 'Account is inactive'));
     });
@@ -147,7 +132,7 @@ describe('Auth Service', () => {
         isActive: true,
         validatePassword: jest.fn().mockResolvedValue(false),
       };
-      User.findOne.mockResolvedValue(mockUser);
+      models.User.findOne.mockResolvedValue(mockUser);
 
       await expect(authService.login(loginData)).rejects.toThrow(new ApiError(401, 'Invalid email or password'));
     });
@@ -162,11 +147,7 @@ describe('Auth Service', () => {
 
       const result = authService.refreshToken(user);
 
-      expect(jwt.sign).toHaveBeenCalledWith(
-        { id: user.id, email: user.email },
-        process.env.JWT_SECRET,
-        { expiresIn: process.env.JWT_EXPIRY },
-      );
+      expect(jwt.sign).toHaveBeenCalledWith({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRY });
       expect(result.token).toBe(mockToken);
       expect(result.message).toBe('Token refreshed successfully');
     });

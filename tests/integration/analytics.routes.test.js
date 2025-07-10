@@ -22,9 +22,8 @@ jest.mock('../../src/models', () => ({
   },
 }));
 
-const request = require('supertest');
 const { Op } = require('sequelize');
-const app = require('../../app');
+const { startServer, stopServer } = require('./helpers');
 const { authenticateJWT } = require('../../src/middleware/jwt.middleware');
 const { requireAdmin } = require('../../src/middleware/admin.middleware');
 const {
@@ -34,6 +33,15 @@ const {
 describe('Analytics Routes', () => {
   let adminUser;
   let regularUser;
+  let request;
+
+  beforeAll(async () => {
+    request = await startServer();
+  });
+
+  afterAll(async () => {
+    await stopServer();
+  });
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -72,7 +80,7 @@ describe('Analytics Routes', () => {
         BillingAccount.findAll.mockResolvedValue([{ getDataValue: () => 1000 }]);
 
         // Act
-        const response = await request(app).get(endpoint).expect(200);
+        const response = await request.get(endpoint).expect(200);
 
         // Assert
         expect(response.body).toBeInstanceOf(Object);
@@ -86,7 +94,7 @@ describe('Analytics Routes', () => {
         });
 
         // Act & Assert
-        await request(app).get(endpoint).expect(403);
+        await request.get(endpoint).expect(403);
       });
 
       it('should return 403 for an unauthenticated request', async () => {
@@ -97,7 +105,7 @@ describe('Analytics Routes', () => {
         });
 
         // Act & Assert
-        await request(app).get(endpoint).expect(403);
+        await request.get(endpoint).expect(403);
       });
     });
   };
@@ -120,7 +128,7 @@ describe('Analytics Routes', () => {
       ApiUsage.findAll.mockResolvedValue([]);
 
       // Act
-      await request(app)
+      await request
         .get(`/api/analytics/admin/revenue?startDate=${startDate}&endDate=${endDate}`)
         .expect(200);
 

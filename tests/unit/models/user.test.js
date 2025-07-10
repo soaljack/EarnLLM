@@ -5,6 +5,16 @@ jest.mock('bcryptjs', () => ({
 }));
 
 const bcrypt = require('bcryptjs');
+// Mock the User model
+const mockUser = {
+  create: jest.fn(),
+  findOne: jest.fn(),
+};
+jest.mock('../../../src/models', () => ({
+  ...jest.requireActual('../../../src/models'),
+  User: mockUser,
+}));
+
 const { User } = require('../../../src/models');
 
 describe('User Model', () => {
@@ -32,7 +42,7 @@ describe('User Model', () => {
     );
 
     // --- Spy on the static User.create method ---
-    jest.spyOn(User, 'create').mockImplementation(async (userData) => {
+    User.create.mockImplementation(async (userData) => {
       if (userData.email === 'not-an-email') {
         const error = new Error('Validation error: Validation isEmail on email failed');
         error.name = 'SequelizeValidationError';

@@ -2,6 +2,16 @@
  * Unit tests for ApiKey model
  */
 
+// Mock the ApiKey model
+const mockApiKey = {
+  create: jest.fn(),
+  update: jest.fn(),
+  verify: jest.fn(),
+};
+jest.mock('../../../src/models', () => ({
+  ApiKey: mockApiKey,
+}));
+
 const { ApiKey } = require('../../../src/models');
 
 describe('ApiKey Model', () => {
@@ -33,8 +43,7 @@ describe('ApiKey Model', () => {
       return keyToVerify === this.rawKey;
     });
 
-    // Spy on the real 'create' method and provide a mock implementation
-    jest.spyOn(ApiKey, 'create').mockImplementation(async (data) => {
+    ApiKey.create.mockImplementation(async (data) => {
       const prefix = `ek_${Math.random().toString(36).substring(2, 10)}`;
       const rawKey = `${prefix}_${Math.random().toString(36).substring(2, 22)}`;
       const apiKeyInstance = {

@@ -1,8 +1,8 @@
 // Mock dependencies to be fully self-contained BEFORE app import.
-jest.mock('../../src/middleware/authenticateJWT');
-jest.mock('../../src/middleware/requireAdmin');
-jest.mock('../../src/middleware/authenticateApiKey');
-jest.mock('../../src/middleware/requireApiPermission');
+jest.mock('../../src/middleware/jwt.middleware');
+jest.mock('../../src/middleware/admin.middleware');
+jest.mock('../../src/middleware/apiKey.middleware.js');
+jest.mock('../../src/middleware/permission.middleware.js');
 
 jest.mock('../../src/models', () => ({
   sequelize: {
@@ -26,13 +26,21 @@ jest.mock('../../src/models', () => ({
   },
 }));
 
-const request = require('supertest');
-const app = require('../../app');
+const { startServer, stopServer } = require('./helpers');
 const { authenticateJWT } = require('../../src/middleware/jwt.middleware');
 const { requireAdmin } = require('../../src/middleware/admin.middleware');
 const { User, ApiUsage } = require('../../src/models');
 
 describe('User Routes', () => {
+  let request;
+
+  beforeAll(async () => {
+    request = await startServer();
+  });
+
+  afterAll(async () => {
+    await stopServer();
+  });
   let testUser;
   let adminUser;
 
@@ -78,13 +86,7 @@ describe('User Routes', () => {
       isAdmin: true,
     };
 
-    requireAdmin.mockImplementation((req, res, next) => {
-      if (req.user && req.user.isAdmin) {
-        next();
-      } else {
-        res.status(403).json({ message: 'Forbidden. Admins only.' });
-      }
-    });
+
   });
 
   describe('Standard User Routes', () => {
@@ -93,6 +95,8 @@ describe('User Routes', () => {
         req.user = testUser; // Use the realistic mock
         return next();
       });
+      // For standard routes, admin middleware should not block
+      requireAdmin.mockImplementation((req, res, next) => next());
     });
 
     it('GET /api/users/me/usage - should return usage stats', async () => {
@@ -111,7 +115,7 @@ describe('User Routes', () => {
       };
       ApiUsage.findOne.mockResolvedValue(mockUsageResult);
 
-      const response = await request(app).get('/api/users/me/usage').expect(200);
+      const response = await request.get('/api/users/me/usage').expect(200);
 
       expect(response.body.totals.totalTokens).toBe(3500);
       expect(ApiUsage.findAll).toHaveBeenCalledTimes(3);
@@ -120,7 +124,7 @@ describe('User Routes', () => {
     it("PUT /api/users/me - should update the user's profile", async () => {
       const updatedFirstName = 'UpdatedName';
 
-      const response = await request(app)
+      const response = await request
         .put('/api/users/me')
         .send({ firstName: updatedFirstName })
         .expect(200);
@@ -134,7 +138,7 @@ describe('User Routes', () => {
     it('PUT /api/users/me - should update password correctly', async () => {
       testUser.validatePassword.mockResolvedValue(true);
 
-      await request(app)
+      await request
         .put('/api/users/me')
         .send({ currentPassword: 'Password123!', newPassword: 'NewPassword456!' })
         .expect(200);
@@ -146,7 +150,7 @@ describe('User Routes', () => {
     it('PUT /api/users/me - should fail password update with wrong current password', async () => {
       testUser.validatePassword.mockResolvedValue(false);
 
-      const response = await request(app)
+      const response = await request
         .put('/api/users/me')
         .send({ currentPassword: 'wrong-password', newPassword: 'new-password' })
         .expect(401);
@@ -168,7 +172,7 @@ describe('User Routes', () => {
     it('GET /api/users - should return a list of all users', async () => {
       User.findAndCountAll.mockResolvedValue({ count: 2, rows: [testUser, adminUser] });
 
-      const response = await request(app).get('/api/users?page=1&limit=10').expect(200);
+      const response = await request.get('/api/users?page=1&limit=10').expect(200);
 
       expect(response.body.users.length).toBe(2);
       expect(User.findAndCountAll).toHaveBeenCalled();
@@ -197,7 +201,7 @@ describe('User Routes', () => {
       };
       ApiUsage.findOne.mockResolvedValue(mockUsageResult);
 
-      const response = await request(app).get(`/api/users/${testUser.id}`).expect(200);
+      const response = await request.get(`/api/users/${testUser.id}`).expect(200);
 
       expect(response.body.user.email).toBe(testUser.email);
       expect(response.body.user.PricingPlan.name).toBe('Free');
@@ -210,7 +214,7 @@ describe('User Routes', () => {
         return next();
       });
 
-      const response = await request(app).get('/api/users').expect(403);
+      const response = await request.get('/api/users').expect(403);
 
       expect(response.body.message).toBe('Forbidden. Admins only.');
     });
