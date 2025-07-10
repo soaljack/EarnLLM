@@ -1,7 +1,7 @@
 const http = require('http');
 const supertest = require('supertest');
 const app = require('../../app'); // The real Express app
-const { connectRateLimiter, closeRateLimiter, getRateLimiterClient } = require('../../src/middleware/rateLimit.middleware');
+const { connectRateLimiter } = require('../../src/middleware/rateLimit.middleware');
 const { mockRedisClient } = require('../setup'); // ioredis-mock instance
 
 let server;
@@ -17,7 +17,9 @@ const startServer = async () => {
   }
 
   server = http.createServer(app);
-  await new Promise((resolve) => server.listen(resolve));
+  await new Promise((resolve) => {
+    server.listen(resolve);
+  });
 
   // Ensure the mock Redis client is connected for rate limiting
   await connectRateLimiter(mockRedisClient);
@@ -39,8 +41,10 @@ const stopServer = async () => {
   if (server) {
     await new Promise((resolve, reject) => {
       server.close((err) => {
-        if (err) return reject(err);
-        resolve();
+        if (err) {
+          return reject(err);
+        }
+        return resolve();
       });
     });
     server = null;

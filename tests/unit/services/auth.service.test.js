@@ -55,8 +55,23 @@ describe('Auth Service', () => {
 
       expect(models.User.findOne).toHaveBeenCalledWith({ where: { email: userData.email } });
       expect(models.PricingPlan.findOne).toHaveBeenCalledWith({ where: { code: 'starter' } });
-      expect(models.User.create).toHaveBeenCalledWith({ ...userData, PricingPlanId: mockPlan.id }, { transaction: mockTransaction });
-      expect(models.BillingAccount.create).toHaveBeenCalledWith({ UserId: mockUser.id, billingEmail: userData.email, creditBalance: 0, tokenUsageThisMonth: 0, paymentsEnabled: false }, { transaction: mockTransaction });
+      expect(models.User.create).toHaveBeenCalledWith(
+        {
+          ...userData,
+          PricingPlanId: mockPlan.id,
+        },
+        { transaction: mockTransaction },
+      );
+      expect(models.BillingAccount.create).toHaveBeenCalledWith(
+        {
+          UserId: mockUser.id,
+          billingEmail: userData.email,
+          creditBalance: 0,
+          tokenUsageThisMonth: 0,
+          paymentsEnabled: false,
+        },
+        { transaction: mockTransaction },
+      );
       expect(jwt.sign).toHaveBeenCalled();
       expect(result.token).toBe(mockToken);
       expect(result.user.email).toBe(userData.email);
@@ -102,7 +117,10 @@ describe('Auth Service', () => {
 
       const result = await authService.login(loginData);
 
-      expect(models.User.findOne).toHaveBeenCalledWith({ where: { email: loginData.email }, include: [{ model: models.PricingPlan }] });
+      expect(models.User.findOne).toHaveBeenCalledWith({
+        where: { email: loginData.email },
+        include: [{ model: models.PricingPlan }],
+      });
       expect(mockUser.validatePassword).toHaveBeenCalledWith(loginData.password);
       expect(mockUser.update).toHaveBeenCalledWith({ lastLoginAt: expect.any(Date) });
       expect(jwt.sign).toHaveBeenCalled();
@@ -147,7 +165,11 @@ describe('Auth Service', () => {
 
       const result = authService.refreshToken(user);
 
-      expect(jwt.sign).toHaveBeenCalledWith({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRY });
+      expect(jwt.sign).toHaveBeenCalledWith(
+        { id: user.id, email: user.email },
+        process.env.JWT_SECRET,
+        { expiresIn: process.env.JWT_EXPIRY },
+      );
       expect(result.token).toBe(mockToken);
       expect(result.message).toBe('Token refreshed successfully');
     });

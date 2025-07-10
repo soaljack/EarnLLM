@@ -8,10 +8,10 @@ jest.unmock('../../../src/middleware/jwt.middleware'); // Ensure we test the REA
 
 // Mock dependencies BEFORE requiring the module-under-test
 
+const crypto = require('crypto');
 const mockSequelizeModels = require('../../mocks/sequelize.mock');
 
 jest.mock('../../../src/models', () => mockSequelizeModels);
-const crypto = require('crypto');
 
 jest.mock('crypto', () => ({
   ...jest.requireActual('crypto'), // Keep other crypto functions
@@ -52,7 +52,7 @@ const { authenticateApiKey } = require('../../../src/middleware/apiKey.middlewar
 const { requireAdmin } = require('../../../src/middleware/admin.middleware');
 const { requireApiPermission } = require('../../../src/middleware/permission.middleware');
 
-const { User, ApiKey, PricingPlan } = require('../../../src/models'); // These will be mocked versions
+const { User, ApiKey } = require('../../../src/models'); // These will be mocked versions
 
 describe('Authentication Middleware', () => {
   let req;
@@ -81,7 +81,9 @@ describe('Authentication Middleware', () => {
     test('should authenticate user with valid JWT token', async () => {
       // Setup
       req.headers.authorization = 'Bearer valid-token';
-      const mockUser = { id: 1, email: 'test@example.com', isActive: true, update: jest.fn().mockResolvedValue(true) };
+      const mockUser = {
+        id: 1, email: 'test@example.com', isActive: true, update: jest.fn().mockResolvedValue(true),
+      };
       User.findByPk.mockResolvedValue(mockUser);
 
       // Execute
@@ -195,13 +197,18 @@ describe('Authentication Middleware', () => {
     const mockHashedKey = 'hashed-valid-key';
 
     beforeEach(() => {
-      crypto.createHash.mockReturnValue({ update: jest.fn().mockReturnThis(), digest: jest.fn().mockReturnValue(mockHashedKey) });
+      crypto.createHash.mockReturnValue({
+        update: jest.fn().mockReturnThis(),
+        digest: jest.fn().mockReturnValue(mockHashedKey),
+      });
     });
 
     test('should authenticate with valid API key', async () => {
       req.headers.authorization = 'Bearer sk-valid-key';
       const mockUser = { id: 1, isActive: true, PricingPlan: { permissions: ['read:models'] } };
-      const mockApiKey = { id: 1, UserId: 1, isActive: true, expiresAt: null, update: jest.fn() };
+      const mockApiKey = {
+        id: 1, UserId: 1, isActive: true, expiresAt: null, update: jest.fn(),
+      };
 
       ApiKey.findOne.mockResolvedValue(mockApiKey);
       User.findByPk.mockResolvedValue(mockUser);
@@ -245,12 +252,16 @@ describe('Authentication Middleware', () => {
 
     test('should return 401 when user is not found or inactive', async () => {
       req.headers.authorization = 'Bearer sk-valid-key';
-      const mockApiKey = { id: 1, UserId: 999, isActive: true, expiresAt: null };
+      const mockApiKey = {
+        id: 1, UserId: 999, isActive: true, expiresAt: null,
+      };
       ApiKey.findOne.mockResolvedValue(mockApiKey);
       User.findByPk.mockResolvedValue(null);
       await authenticateApiKey(req, res, next);
       expect(User.findByPk).toHaveBeenCalledWith(999, expect.any(Object));
-      expect(next).toHaveBeenCalledWith(expect.objectContaining({ status: 401, message: 'User account is inactive or not found.' }));
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({
+        status: 401, message: 'User account is inactive or not found.',
+      }));
     });
   });
 

@@ -59,5 +59,4 @@ module.exports = {
   // A path to a module that runs once after all test suites
   globalTeardown: './tests/jest.globalTeardown.js',
 
-
 };

@@ -1,5 +1,6 @@
-const { startServer, stopServer } = require('./helpers');
 const { StatusCodes } = require('http-status-codes');
+const request = require('supertest');
+const { startServer, stopServer } = require('./helpers');
 
 // Mock models before they are imported by the app
 jest.mock('../../src/models', () => ({
@@ -18,7 +19,6 @@ jest.mock('../../src/models', () => ({
 }));
 
 const { User, PricingPlan } = require('../../src/models');
-const request = require('supertest');
 
 describe('Error Handling Integration Tests', () => {
   let app;

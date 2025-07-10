@@ -1,7 +1,6 @@
-const { startServer, stopServer } = require('./helpers');
 const jwt = require('jsonwebtoken');
+const { startServer, stopServer } = require('./helpers');
 const config = require('../../src/config');
-
 
 describe('API Key Routes', () => {
   const {
@@ -70,8 +69,12 @@ describe('API Key Routes', () => {
 
   describe('GET /v1/api-keys', () => {
     it('should retrieve all API keys for the user', async () => {
-      await ApiKey.create({ name: 'Key 1', UserId: testUser.id, key: 'key1_hashed', prefix: 'sk_test_1' });
-      await ApiKey.create({ name: 'Key 2', UserId: testUser.id, key: 'key2_hashed', prefix: 'sk_test_2' });
+      await ApiKey.create({
+        name: 'Key 1', UserId: testUser.id, key: 'key1_hashed', prefix: 'sk_test_1',
+      });
+      await ApiKey.create({
+        name: 'Key 2', UserId: testUser.id, key: 'key2_hashed', prefix: 'sk_test_2',
+      });
 
       const res = await serverRequest
         .get('/v1/api-keys')
@@ -114,7 +117,9 @@ describe('API Key Routes', () => {
         password: 'password',
         PricingPlanId: testUser.PricingPlanId,
       });
-      const apiKey = await ApiKey.create({ name: 'Other User Key', UserId: otherUser.id, key: 'other_key_hashed', prefix: 'sk_test_other' });
+      const apiKey = await ApiKey.create({
+        name: 'Other User Key', UserId: otherUser.id, key: 'other_key_hashed', prefix: 'sk_test_other',
+      });
 
       await serverRequest
         .post(`/v1/api-keys/${apiKey.id}/revoke`)
@@ -125,7 +130,9 @@ describe('API Key Routes', () => {
 
   describe('DELETE /v1/api-keys/:id', () => {
     it('should delete an API key', async () => {
-      const apiKey = await ApiKey.create({ name: 'Key to Delete', UserId: testUser.id, key: 'key_to_delete_hashed', prefix: 'sk_test_del' });
+      const apiKey = await ApiKey.create({
+        name: 'Key to Delete', UserId: testUser.id, key: 'key_to_delete_hashed', prefix: 'sk_test_del',
+      });
 
       await serverRequest
         .delete(`/v1/api-keys/${apiKey.id}`)
@@ -146,7 +153,9 @@ describe('API Key Routes', () => {
 
   describe('PUT /v1/api-keys/:id', () => {
     it('should update the name of an API key', async () => {
-      const apiKey = await ApiKey.create({ name: 'Key to Update', UserId: testUser.id, key: 'key_to_update_hashed', prefix: 'sk_test_upd' });
+      const apiKey = await ApiKey.create({
+        name: 'Key to Update', UserId: testUser.id, key: 'key_to_update_hashed', prefix: 'sk_test_upd',
+      });
       const newName = 'Updated Key Name';
 
       const res = await serverRequest
@@ -175,7 +184,9 @@ describe('API Key Routes', () => {
         password: 'password',
         PricingPlanId: testUser.PricingPlanId,
       });
-      const apiKey = await ApiKey.create({ name: 'Other User Key', UserId: otherUser.id, key: 'other_key_hashed', prefix: 'sk_test_other' });
+      const apiKey = await ApiKey.create({
+        name: 'Other User Key', UserId: otherUser.id, key: 'other_key_hashed', prefix: 'sk_test_other',
+      });
 
       await serverRequest
         .put(`/v1/api-keys/${apiKey.id}`)

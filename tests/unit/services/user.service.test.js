@@ -43,12 +43,12 @@ describe('User Service', () => {
         },
       };
 
-            models.User.findByPk.mockResolvedValue(mockUser);
+      models.User.findByPk.mockResolvedValue(mockUser);
 
       const result = await userService.getUserProfile(userId);
 
-            expect(models.User.findByPk).toHaveBeenCalledWith(userId, {
-        include: [{ model: PricingPlan }, { model: BillingAccount }],
+      expect(models.User.findByPk).toHaveBeenCalledWith(userId, {
+        include: [{ model: models.PricingPlan }, { model: models.BillingAccount }],
         attributes: { exclude: ['password'] },
       });
 
@@ -68,7 +68,7 @@ describe('User Service', () => {
 
     it('should throw an error if the user is not found', async () => {
       const userId = 'a-valid-uuid-not-found';
-            models.User.findByPk.mockResolvedValue(null);
+      models.User.findByPk.mockResolvedValue(null);
 
       await expect(userService.getUserProfile(userId)).rejects.toThrow(
         new ApiError(404, 'User not found'),

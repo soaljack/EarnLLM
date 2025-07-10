@@ -85,8 +85,6 @@ describe('User Routes', () => {
       isActive: true,
       isAdmin: true,
     };
-
-
   });
 
   describe('Standard User Routes', () => {

@@ -87,7 +87,7 @@ const rateLimitByPlan = async (req, res, next) => {
 
     if (redisClient && redisClient.status === 'ready') {
       // Use a Redis transaction to ensure atomicity
-      const [[, zremrangeResult], [, zaddResult], [, zcardResult], [, expireResult]] = await redisClient
+      const [[, _zremrangeResult], [, _zaddResult], [, zcardResult], [, _expireResult]] = await redisClient
         .multi()
         .zremrangebyscore(key, 0, now - windowMs)
         .zadd(key, now, now.toString())
@@ -266,7 +266,7 @@ const createPublicRateLimiter = ({ windowMs, max, message }) => async (req, res,
     if (redisClient && redisClient.status === 'ready') {
       // Redis-based rate limiting using a sorted set
       // Clean up old entries that are outside the time window
-      const [[, zremrangeResult], [, zaddResult], [, expireResult], [, zcardResult]] = await redisClient
+      const [[, _zremrangeResult], [, _zaddResult], [, _expireResult], [, zcardResult]] = await redisClient
         .multi()
         .zremrangebyscore(key, 0, now - windowMs)
         .zadd(key, now, now.toString())

@@ -1,13 +1,6 @@
-const { execSync } = require('child_process');
-const { Sequelize } = require('sequelize');
-const { Umzug, SequelizeStorage } = require('umzug');
-const path = require('path');
-
 // IMPORTANT: We are now using the centralized sequelize instance and models
 // This ensures that the test environment is as close to production as possible.
 const { sequelize, ...models } = require('../src/db/sequelize');
-
-const testDbName = sequelize.config.database;
 
 module.exports = async () => {
   console.log('\n[Jest Global Setup] Setting up test database...');

@@ -17,7 +17,6 @@ jest.mock('../../src/models', () => ({
   },
 }));
 
-
 const { startServer, stopServer } = require('./helpers');
 const { authenticateApiKey } = require('../../src/middleware/apiKey.middleware');
 const { authenticateJWT } = require('../../src/middleware/jwt.middleware');

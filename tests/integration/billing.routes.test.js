@@ -42,8 +42,6 @@ jest.mock('../../src/config/logger', () => ({
   debug: jest.fn(),
 }));
 
-
-
 describe('Billing Routes', () => {
   let request;
 
@@ -82,7 +80,7 @@ describe('Billing Routes', () => {
     };
 
     // --- Mock Implementations ---
-        apiKeyMiddleware.authenticateApiKey.mockImplementation((req, res, next) => {
+    apiKeyMiddleware.authenticateApiKey.mockImplementation((req, res, next) => {
       req.user = testUser;
       next();
     });

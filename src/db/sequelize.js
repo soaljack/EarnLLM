@@ -11,23 +11,31 @@ const sequelize = new Sequelize(
   },
 );
 
+const userModelDefiner = require('../models/user');
+const apiKeyModelDefiner = require('../models/apiKey');
+const llmModelDefiner = require('../models/llmModel');
+const pricingPlanModelDefiner = require('../models/pricingPlan');
+const billingAccountModelDefiner = require('../models/billingAccount');
+const apiUsageModelDefiner = require('../models/apiUsage');
+const externalModelDefiner = require('../models/externalModel');
+
 const modelDefiners = [
-  require('../models/user'),
-  require('../models/apiKey'),
-  require('../models/llmModel'),
-  require('../models/pricingPlan'),
-  require('../models/billingAccount'),
-  require('../models/apiUsage'),
-  require('../models/externalModel'),
+  userModelDefiner,
+  apiKeyModelDefiner,
+  llmModelDefiner,
+  pricingPlanModelDefiner,
+  billingAccountModelDefiner,
+  apiUsageModelDefiner,
+  externalModelDefiner,
 ];
 
 // We define all models according to their files.
-for (const modelDefiner of modelDefiners) {
-  modelDefiner(sequelize, Sequelize);
-}
+modelDefiners.forEach((modelDefiner) => modelDefiner(sequelize, Sequelize));
 
 // We execute any extra setup after the models are defined, such as adding associations.
-const { User, ApiKey, LlmModel, PricingPlan, BillingAccount, ApiUsage, ExternalModel } = sequelize.models;
+const {
+  User, ApiKey, LlmModel, PricingPlan, BillingAccount, ApiUsage, ExternalModel,
+} = sequelize.models;
 
 if (User.associate) {
   User.associate(sequelize.models);
