@@ -12,12 +12,14 @@ const testDbName = sequelize.config.database;
 module.exports = async () => {
   console.log('\n[Jest Global Setup] Setting up test database...');
 
-  // 1. Drop and recreate the database.
+  // 1. Reset the database by dropping and recreating tables.
   try {
-    execSync(`dropdb --if-exists ${testDbName} --force`, { stdio: 'ignore' });
-    execSync(`createdb ${testDbName}`, { stdio: 'ignore' });
+    // Authenticate to ensure the database connection is valid.
+    await sequelize.authenticate();
+    // Sync all models, dropping tables first if they exist.
+    await sequelize.sync({ force: true });
   } catch (e) {
-    console.error('Failed to recreate database. Make sure you have `createdb` and `dropdb` commands available.', e);
+    console.error('Failed to sync database. Please check your database connection and permissions.', e);
     process.exit(1);
   }
 
