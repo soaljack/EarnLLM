@@ -143,7 +143,10 @@ describe('Rate Limiting Middleware', () => {
       expect(next).toHaveBeenCalledTimes(1);
       const error = next.mock.calls[0][0];
       expect(error.status).toBe(429);
-      expect(error.message).toBe(`You have exceeded your daily request quota of ${req.user.PricingPlan.requestsPerDay}. Please try again tomorrow.`);
+      expect(error.message).toBe(
+        `You have exceeded your daily request quota of ${req.user.PricingPlan.requestsPerDay}. `
+          + 'Please try again tomorrow.',
+      );
     });
   });
 

@@ -2,7 +2,6 @@ const { execSync } = require('child_process');
 const { Sequelize } = require('sequelize');
 const { Umzug, SequelizeStorage } = require('umzug');
 const path = require('path');
-const config = require('../src/config');
 
 // IMPORTANT: We are now using the centralized sequelize instance and models
 // This ensures that the test environment is as close to production as possible.

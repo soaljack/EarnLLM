@@ -9,7 +9,7 @@ const client = new Client({
   user: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || 'postgres',
   database: process.env.DB_NAME || 'earnllm_test',
-  connectionTimeoutMillis: 5000, // 5 seconds
+  connectionTimeoutMillis: 5000,
 });
 
 async function connectWithRetry(retries = maxRetries) {
@@ -25,7 +25,8 @@ async function connectWithRetry(retries = maxRetries) {
     await client.end();
     process.exit(0);
   } catch (err) {
-    console.error(`Connection attempt failed: ${err.message}. Retrying in ${retryDelay / 1000}s... (${retries - 1} retries left)`);
+    console.error(`Connection attempt failed: ${err.message}.`);
+    console.error(`Retrying in ${retryDelay / 1000}s... (${retries - 1} retries left)`);
     await client.end(); // Ensure client is ended before retrying
     setTimeout(() => connectWithRetry(retries - 1), retryDelay);
   }

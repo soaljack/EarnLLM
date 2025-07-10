@@ -19,7 +19,8 @@ describe('Token Counter Utilities', () => {
     });
 
     test('should count tokens in a longer text', () => {
-      const text = 'This is a longer piece of text that should result in more tokens. It contains multiple sentences and should have a higher token count than a simple greeting.';
+      const text = 'This is a longer piece of text that should result in more tokens. '
+        + 'It contains multiple sentences and should have a higher token count than a simple greeting.';
       const tokenCount = countTokensInText(text);
       expect(tokenCount).toBeGreaterThan(20);
     });

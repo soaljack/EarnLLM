@@ -80,7 +80,9 @@ describe('Auth Service', () => {
       const userData = { email: 'test@example.com' };
       User.findOne.mockResolvedValue({ id: 'user-123' });
 
-      await expect(authService.register(userData)).rejects.toThrow(new ApiError(409, 'User with this email already exists'));
+      await expect(authService.register(userData)).rejects.toThrow(
+        new ApiError(409, 'User with this email already exists'),
+      );
     });
 
     it('should throw an error if default pricing plan is not found', async () => {
@@ -88,7 +90,9 @@ describe('Auth Service', () => {
       User.findOne.mockResolvedValue(null);
       PricingPlan.findOne.mockResolvedValue(null);
 
-      await expect(authService.register(userData)).rejects.toThrow(new ApiError(500, 'Unable to find default pricing plan. Please contact support.'));
+      await expect(authService.register(userData)).rejects.toThrow(
+        new ApiError(500, 'Unable to find default pricing plan. Please contact support.'),
+      );
     });
   });
 
@@ -110,7 +114,10 @@ describe('Auth Service', () => {
 
       const result = await authService.login(loginData);
 
-      expect(User.findOne).toHaveBeenCalledWith({ where: { email: loginData.email }, include: [{ model: PricingPlan }] });
+      expect(User.findOne).toHaveBeenCalledWith({
+        where: { email: loginData.email },
+        include: [{ model: PricingPlan }],
+      });
       expect(mockUser.validatePassword).toHaveBeenCalledWith(loginData.password);
       expect(mockUser.update).toHaveBeenCalledWith({ lastLoginAt: expect.any(Date) });
       expect(jwt.sign).toHaveBeenCalled();

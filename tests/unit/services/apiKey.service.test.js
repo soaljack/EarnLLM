@@ -85,7 +85,10 @@ describe('ApiKey Service', () => {
 
       await apiKeyService.updateApiKeyById(userId, apiKeyId, updateData);
 
-      expect(ApiKey.findOne).toHaveBeenCalledWith({ where: { id: apiKeyId, UserId: userId }, transaction: mockTransaction });
+      expect(ApiKey.findOne).toHaveBeenCalledWith({
+        where: { id: apiKeyId, UserId: userId },
+        transaction: mockTransaction,
+      });
       expect(mockKey.name).toBe(updateData.name);
       expect(mockKey.save).toHaveBeenCalledWith({ transaction: mockTransaction });
     });
@@ -108,7 +111,10 @@ describe('ApiKey Service', () => {
 
       await apiKeyService.revokeApiKeyById(userId, apiKeyId);
 
-      expect(ApiKey.findOne).toHaveBeenCalledWith({ where: { id: apiKeyId, UserId: userId }, transaction: mockTransaction });
+      expect(ApiKey.findOne).toHaveBeenCalledWith({
+        where: { id: apiKeyId, UserId: userId },
+        transaction: mockTransaction,
+      });
       expect(mockKey.isActive).toBe(false);
       expect(mockKey.save).toHaveBeenCalledWith({ transaction: mockTransaction });
     });
@@ -130,7 +136,10 @@ describe('ApiKey Service', () => {
 
       await apiKeyService.deleteApiKeyById(userId, apiKeyId);
 
-      expect(ApiKey.destroy).toHaveBeenCalledWith({ where: { id: apiKeyId, UserId: userId }, transaction: mockTransaction });
+      expect(ApiKey.destroy).toHaveBeenCalledWith({
+        where: { id: apiKeyId, UserId: userId },
+        transaction: mockTransaction,
+      });
     });
 
     it('should throw an error if the API key to delete is not found', async () => {

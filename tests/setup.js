@@ -6,9 +6,7 @@ require('dotenv').config();
  * Global test setup for EarnLLM API tests
  */
 const redisMock = require('redis-mock');
-const { mockAuthenticateJWT, mockAuthenticateApiKey } = require('./mocks/auth.middleware.mock');
 const authHelpersMock = require('./mocks/authHelpers.mock');
-const { connectRateLimiter, closeRateLimiter } = require('../src/middleware/rateLimit.middleware');
 
 // Mock the logger to suppress info/warn messages during tests
 jest.mock('../src/config/logger', () => ({
@@ -161,7 +159,9 @@ jest.doMock('../src/utils/auth', () => authHelpersMock, { virtual: true });
 // Mock bcryptjs to avoid issues with native addons in tests
 jest.mock('bcryptjs', () => ({
   hash: jest.fn().mockImplementation(async (plainPassword, _salt) => `${plainPassword}_hashed`),
-  compare: jest.fn().mockImplementation(async (plainPassword, hashedPassword) => `${plainPassword}_hashed` === hashedPassword),
+  compare: jest.fn().mockImplementation(
+    async (plainPassword, hashedPassword) => `${plainPassword}_hashed` === hashedPassword,
+  ),
 }));
 
 // Reset mocks between tests

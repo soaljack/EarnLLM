@@ -8,6 +8,13 @@ module.exports = {
   extends: [
     'airbnb-base',
   ],
+  settings: {
+    'import/resolver': {
+      jest: {
+        jestConfigFile: './jest.config.js',
+      },
+    },
+  },
   parserOptions: {
     ecmaVersion: 12,
   },
@@ -22,6 +29,34 @@ module.exports = {
     // If you use a lot of named exports and prefer them
     'import/prefer-default-export': 'off',
     // Allow devDependencies to be imported in test files
-    'import/no-extraneous-dependencies': ['error', { devDependencies: ['tests/**/*.js', '**/*.test.js', '**/*.spec.js', '**/jest.setup.js', '**/jest.setup.live.js', '**/dotenv.setup.js'] }],
+    'import/no-extraneous-dependencies': [
+      'error',
+      {
+        devDependencies: [
+          'tests/**/*.js',
+          '**/*.test.js',
+          '**/*.spec.js',
+          '**/jest.setup.js',
+          '**/jest.setup.live.js',
+          '**/dotenv.setup.js',
+        ],
+      },
+    ],
+    'import/extensions': [
+      'error',
+      'ignorePackages',
+      {
+        js: 'never',
+      },
+    ],
+    'max-len': ['error', { code: 120, ignoreComments: true }],
   },
+  overrides: [
+    {
+      files: ['src/models/index.js'],
+      rules: {
+        'global-require': 'off',
+      },
+    },
+  ],
 };

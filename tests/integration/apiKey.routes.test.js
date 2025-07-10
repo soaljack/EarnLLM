@@ -1,6 +1,5 @@
 const request = require('supertest');
 const http = require('http');
-const { Op } = require('sequelize');
 const jwt = require('jsonwebtoken');
 const app = require('../../app');
 const config = require('../../src/config');
@@ -18,7 +17,7 @@ describe('API Key Routes', () => {
 
   beforeAll(async () => {
     server = http.createServer(app);
-    await new Promise((resolve) => server.listen(resolve));
+    await new Promise((resolve) => { server.listen(resolve); });
 
     // Mock Redis
     mockRedisClient.isReady = true;
@@ -131,7 +130,11 @@ describe('API Key Routes', () => {
     });
 
     it('should return 404 if key belongs to another user', async () => {
-      const otherUser = await User.create({ email: `other-${Date.now()}@example.com`, password: 'password', PricingPlanId: testUser.PricingPlanId });
+      const otherUser = await User.create({
+        email: `other-${Date.now()}@example.com`,
+        password: 'password',
+        PricingPlanId: testUser.PricingPlanId,
+      });
       const apiKey = await ApiKey.create({ name: 'Other User Key', UserId: otherUser.id, key: 'other_key_hashed' });
 
       await request(server)
@@ -188,7 +191,11 @@ describe('API Key Routes', () => {
     });
 
     it('should return 404 if key belongs to another user', async () => {
-      const otherUser = await User.create({ email: `other-${Date.now()}@example.com`, password: 'password', PricingPlanId: testUser.PricingPlanId });
+      const otherUser = await User.create({
+        email: `other-${Date.now()}@example.com`,
+        password: 'password',
+        PricingPlanId: testUser.PricingPlanId,
+      });
       const apiKey = await ApiKey.create({ name: 'Other User Key', UserId: otherUser.id, key: 'other_key_hashed' });
 
       await request(server)

@@ -1,4 +1,3 @@
-const { ApiKey, sequelize } = require('../db/sequelize');
 const apiKeyService = require('../services/apiKey.service');
 
 // Get all API keys for the current user

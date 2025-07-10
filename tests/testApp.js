@@ -455,10 +455,16 @@ app.get('/api/analytics/overview', authenticateJWT, requireAdmin, (req, res) => 
     },
     recentActivity: [
       {
-        timestamp: new Date(), event: 'API request', user: 'user@example.com', details: 'Chat completion',
+        timestamp: new Date(),
+        event: 'API request',
+        user: 'user@example.com',
+        details: 'Chat completion',
       },
       {
-        timestamp: new Date(Date.now() - 3600000), event: 'API request', user: 'another@example.com', details: 'Embedding',
+        timestamp: new Date(Date.now() - 3600000),
+        event: 'API request',
+        user: 'another@example.com',
+        details: 'Embedding',
       },
     ],
     errorRate: { rate: 0.02, trend: -0.005 },

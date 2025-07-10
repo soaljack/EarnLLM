@@ -37,12 +37,10 @@ jest.mock('jsonwebtoken', () => ({ verify: mockJwtVerify }));
 jest.mock('http-errors', () => jest.fn().mockImplementation((code, message) => ({ status: code, message })));
 
 // Now require the module under test and its (mocked) dependencies
-const {
-  authenticateJWT,
-  authenticateApiKey,
-  requireAdmin,
-  requireApiPermission,
-} = require('../../../src/middleware/auth.middleware.js');
+const { authenticateJWT } = require('../../../src/middleware/jwt.middleware');
+const { authenticateApiKey } = require('../../../src/middleware/apiKey.middleware');
+const { requireAdmin } = require('../../../src/middleware/admin.middleware');
+const { requireApiPermission } = require('../../../src/middleware/permission.middleware');
 
 const { User, ApiKey, PricingPlan } = require('../../../src/models'); // These will be mocked versions
 

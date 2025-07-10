@@ -1,6 +1,7 @@
 /**
  * Mock Sequelize for testing
  */
+const { Op } = require('sequelize');
 
 const mockModels = {
   User: {
@@ -98,7 +99,7 @@ Object.keys(mockModels).forEach((modelName) => {
 module.exports = {
   sequelize: sequelizeMock,
   Sequelize: {
-    Op: require('sequelize').Op,
+    Op,
     Model: class MockModel {},
   },
   User: mockModels.User,

@@ -48,7 +48,10 @@ beforeAll(async () => {
       // 1. Create a test pricing plan
       const stripePriceId = process.env.STRIPE_TEST_PRICE_ID;
       if (!stripePriceId) {
-        throw new Error('STRIPE_TEST_PRICE_ID environment variable is not set. Please set it in your .env file for live tests.');
+        throw new Error(
+          'STRIPE_TEST_PRICE_ID environment variable is not set. '
+            + 'Please set it in your .env file for live tests.',
+        );
       }
       const testPlan = await PricingPlan.create({
         name: 'Live Test Plan',

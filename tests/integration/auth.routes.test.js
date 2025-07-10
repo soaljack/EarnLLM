@@ -1,5 +1,6 @@
 const request = require('supertest');
 const http = require('http');
+const bcrypt = require('bcryptjs');
 const app = require('../../app');
 
 const { connectRateLimiter, closeRateLimiter } = require('../../src/middleware/rateLimit.middleware');
@@ -11,7 +12,7 @@ describe('Authentication Routes', () => {
 
   beforeAll(async () => {
     server = http.createServer(app);
-    await new Promise((resolve) => server.listen(resolve));
+    await new Promise((resolve) => { server.listen(resolve); });
 
     // Initialize rate limiter with mock client
     mockRedisClient.isReady = true;
@@ -79,6 +80,7 @@ describe('Authentication Routes', () => {
 
     it('should return 400 for missing required fields', async () => {
       // Arrange: Create an incomplete payload
+      // eslint-disable-next-line no-unused-vars
       const { password, ...incompletePayload } = registerPayload;
 
       // Act & Assert: Send the incomplete payload and expect a bad request error
@@ -108,7 +110,7 @@ describe('Authentication Routes', () => {
 
     beforeEach(async () => {
       // Create a user to test login
-      const hashedPassword = await require('bcryptjs').hash(loginPayload.password, 10);
+      const hashedPassword = await bcrypt.hash(loginPayload.password, 10);
       await User.create({
         email: loginPayload.email,
         password: hashedPassword,
@@ -144,6 +146,7 @@ describe('Authentication Routes', () => {
     });
 
     it('should return 400 for missing email', async () => {
+      // eslint-disable-next-line no-unused-vars
       const { email, ...payload } = loginPayload;
       await request(server)
         .post('/v1/auth/login')
@@ -152,6 +155,7 @@ describe('Authentication Routes', () => {
     });
 
     it('should return 400 for missing password', async () => {
+      // eslint-disable-next-line no-unused-vars
       const { password, ...payload } = loginPayload;
       await request(server)
         .post('/v1/auth/login')

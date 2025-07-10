@@ -19,9 +19,9 @@ jest.mock('../../src/models', () => ({
 
 const request = require('supertest');
 const app = require('../../app');
-const authenticateApiKey = require('../../src/middleware/authenticateApiKey.js');
-const authenticateJWT = require('../../src/middleware/authenticateJWT.js');
-const requireAdmin = require('../../src/middleware/requireAdmin.js');
+const { authenticateApiKey } = require('../../src/middleware/apiKey.middleware');
+const { authenticateJWT } = require('../../src/middleware/jwt.middleware');
+const { requireAdmin } = require('../../src/middleware/admin.middleware');
 const { LlmModel, ExternalModel } = require('../../src/models');
 
 describe('Model Routes', () => {
@@ -134,7 +134,9 @@ describe('Model Routes', () => {
 
       // Assert
       expect(LlmModel.findByPk).toHaveBeenCalledWith(systemModel.id.toString());
-      expect(mockModelInstance.update).toHaveBeenCalledWith(expect.objectContaining({ description: 'Updated description' }));
+      expect(mockModelInstance.update).toHaveBeenCalledWith(
+        expect.objectContaining({ description: 'Updated description' }),
+      );
       expect(response.body.description).toBe('Updated description');
     });
   });

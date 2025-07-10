@@ -1,9 +1,7 @@
 // Mock dependencies FIRST to ensure they are available for other imports
-jest.mock('../../src/middleware/auth.middleware', () => ({
-  authenticateJWT: jest.fn(),
-  requireAdmin: jest.fn(),
-  authenticateApiKey: jest.fn(),
-}));
+jest.mock('../../src/middleware/jwt.middleware');
+jest.mock('../../src/middleware/admin.middleware');
+jest.mock('../../src/middleware/apiKey.middleware');
 
 jest.mock('../../src/models', () => ({
   User: { count: jest.fn(), findAll: jest.fn() },
@@ -27,7 +25,8 @@ jest.mock('../../src/models', () => ({
 const request = require('supertest');
 const { Op } = require('sequelize');
 const app = require('../../app');
-const authMiddleware = require('../../src/middleware/auth.middleware.js');
+const { authenticateJWT } = require('../../src/middleware/jwt.middleware');
+const { requireAdmin } = require('../../src/middleware/admin.middleware');
 const {
   User, ApiUsage, BillingAccount, ApiKey,
 } = require('../../src/models');
@@ -43,12 +42,12 @@ describe('Analytics Routes', () => {
     regularUser = { id: 1, isAdmin: false };
 
     // Default middleware to admin access
-    authMiddleware.authenticateJWT.mockImplementation((req, res, next) => {
+    authenticateJWT.mockImplementation((req, res, next) => {
       req.user = adminUser;
       next();
     });
 
-    authMiddleware.requireAdmin.mockImplementation((req, res, next) => {
+    requireAdmin.mockImplementation((req, res, next) => {
       if (req.user && req.user.isAdmin) {
         return next();
       }
@@ -81,7 +80,7 @@ describe('Analytics Routes', () => {
 
       it('should return 403 for a non-admin user', async () => {
         // Arrange: Simulate a regular user making the request
-        authMiddleware.authenticateJWT.mockImplementation((req, res, next) => {
+        authenticateJWT.mockImplementation((req, res, next) => {
           req.user = regularUser;
           next();
         });
@@ -92,7 +91,7 @@ describe('Analytics Routes', () => {
 
       it('should return 403 for an unauthenticated request', async () => {
         // Arrange: Simulate no user being authenticated
-        authMiddleware.authenticateJWT.mockImplementation((req, res, next) => {
+        authenticateJWT.mockImplementation((req, res, next) => {
           req.user = null; // Explicitly unauthenticated
           next();
         });

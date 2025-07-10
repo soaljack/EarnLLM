@@ -95,9 +95,8 @@ const rateLimitByPlan = async (req, res, next) => {
       transaction.zCard(key);
       transaction.expire(key, 60);
 
-      const results = await transaction.exec();
-      // The result of zCard is the 3rd command in the transaction
-      requestCount = results[2];
+      const [, , count] = await transaction.exec();
+      requestCount = count;
     } else {
       // In-memory rate limiting
       if (!inMemoryStore.requests[key]) {
@@ -170,7 +169,13 @@ const checkDailyQuota = async (req, res, next) => {
 
     // Check if daily quota is exceeded
     if (dailyUsageCount >= pricingPlan.requestsPerDay) {
-      return next(createError(429, `You have exceeded your daily request quota of ${pricingPlan.requestsPerDay}. Please try again tomorrow.`));
+      return next(
+        createError(
+          429,
+          `You have exceeded your daily request quota of ${pricingPlan.requestsPerDay}. 
+           Please try again tomorrow.`,
+        ),
+      );
     }
 
     // Set quota headers
