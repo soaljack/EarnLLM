@@ -23,17 +23,8 @@ module.exports = async () => {
     process.exit(1);
   }
 
-  // 2. Run migrations using the centralized sequelize instance.
-  const umzug = new Umzug({
-    migrations: { glob: path.join(__dirname, '../src/migrations/*.js') },
-    context: {
-      queryInterface: sequelize.getQueryInterface(),
-      Sequelize,
-    },
-    storage: new SequelizeStorage({ sequelize }),
-    logger: console,
-  });
-  await umzug.up();
+  // 2. The database schema is now managed by `sequelize.sync()`.
+  // The migration step is no longer needed for the test setup.
 
   // 3. Seed baseline data.
   await models.PricingPlan.create({
